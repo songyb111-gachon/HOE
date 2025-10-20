@@ -764,7 +764,20 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     print(f"  • Geometry count: {len(geometry)}")
     print(f"  • Monitor count: {len(monitor_volumes)}")
     
-    sim.run(until=30.0)
+    # Calculate required simulation time (nm/c units)
+    # Distance from source to farthest monitor
+    max_distance = abs(x_src) + max(abs(pos) for pos in all_monitor_positions) + pillar_height_nm/2
+    # Time for light to travel through medium (with index n_base)
+    travel_time = max_distance * n_base
+    # Add extra time for stabilization (a few wavelengths)
+    extra_time = wavelength_nm * 5
+    total_time = travel_time + extra_time
+    
+    print(f"  • Max distance: {max_distance:.0f} nm")
+    print(f"  • Travel time: {travel_time:.0f} nm/c")
+    print(f"  • Total simulation time: {total_time:.0f} nm/c")
+    
+    sim.run(until=total_time)
     
     print(f"✅ Simulation complete!")
     
@@ -785,7 +798,7 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     back_monitors = {}
     
     for monitor_vol, name, x_pos, position_type in monitor_volumes:
-        print(f"  • {name} monitor (x = {x_pos:.2f} μm)...")
+        print(f"  • {name} monitor (x = {x_pos:.0f} nm)...")
         
         ez_data = sim.get_array(center=monitor_vol.center, size=monitor_vol.size, 
                                component=mp.Ez)

@@ -253,6 +253,7 @@ CELL_SIZE_SCALE = 1.0      # 패턴 크기 스케일 조정 (필요시)
 - ✅ **셀 크기는 패턴에 맞춤**: y, z 방향은 실제 마스크 크기에서 자동 계산 (왜곡 방지)
 - ✅ **1 픽셀 = 1 nm**: 4096×4096 픽셀 마스크 = 4096×4096 nm 셀
 - ✅ **필름 두께**: 600 nm (0.6 μm) - 파장 정도의 두께
+- ✅ **시뮬레이션 시간 자동 계산**: 광원-모니터 거리 및 굴절률을 고려하여 충분한 시간 자동 설정
 
 ### 출력 결과
 
@@ -352,8 +353,11 @@ Pillar thickness: 600 nm
   • Block size: 600 × 33.3 × 33.3 nm
 
 🚀 Running simulation...
-  • Geometry count: 3,199,854
+  • Geometry count: 3,674
   • Monitor count: 4
+  • Max distance: 8900 nm
+  • Travel time: 13350 nm/c
+  • Total simulation time: 16025 nm/c
 
 ✅ Simulation complete!
 
