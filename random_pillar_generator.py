@@ -2,6 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import matplotlib.patches as mpatches
+import warnings
+import logging
+
+# matplotlib 폰트 경고 메시지 억제
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 
 class RandomPillarGenerator:
     """랜덤 필러 생성 알고리즘"""
