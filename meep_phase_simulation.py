@@ -636,23 +636,28 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     
     # Calculate cell size from mask (1 pixel = 1 nm)
     mask_height_nm, mask_width_nm = mask.shape
-    size_z_nm = mask_height_nm * cell_size_scale  # nm (already in nm)
-    size_y_nm = mask_width_nm * cell_size_scale   # nm (already in nm)
+    size_z_nm_raw = mask_height_nm * cell_size_scale  # nm (already in nm)
+    size_y_nm_raw = mask_width_nm * cell_size_scale   # nm (already in nm)
+    
+    # MEEP grid resolution (pixels/nm) - round to nearest integer
+    target_ny = int(np.round(size_y_nm_raw * resolution_nm))  # y direction grid points
+    target_nz = int(np.round(size_z_nm_raw * resolution_nm))  # z direction grid points
+    
+    # Adjust cell size to ensure integer number of pixels (avoid MEEP warning)
+    size_y_nm = target_ny / resolution_nm  # Adjusted to exact grid
+    size_z_nm = target_nz / resolution_nm  # Adjusted to exact grid
     
     print(f"\n📐 Cell size from mask:")
     print(f"  • Mask size: {mask.shape} pixels (height × width)")
     print(f"  • 1 pixel = 1 nm")
-    print(f"  • Cell size y: {size_y_nm:.0f} nm")
-    print(f"  • Cell size z: {size_z_nm:.0f} nm")
+    print(f"  • Raw cell size: {size_y_nm_raw:.0f} × {size_z_nm_raw:.0f} nm (Y × Z)")
+    print(f"  • Adjusted cell size: {size_y_nm:.2f} × {size_z_nm:.2f} nm (Y × Z)")
+    print(f"  • Adjustment: {abs(size_y_nm-size_y_nm_raw):.2f} nm ({abs(size_y_nm-size_y_nm_raw)/size_y_nm_raw*100:.3f}%)")
     print(f"  • Scale factor: {cell_size_scale}")
     
-    # MEEP grid resolution (pixels/nm)
-    target_ny = int(size_y_nm * resolution_nm)  # y direction grid points
-    target_nz = int(size_z_nm * resolution_nm)  # z direction grid points
-    
-    print(f"\n📐 MEEP grid size:")
-    print(f"  • ny (y direction): {target_ny} points ({size_y_nm:.0f} nm × {resolution_nm} pixels/nm)")
-    print(f"  • nz (z direction): {target_nz} points ({size_z_nm:.0f} nm × {resolution_nm} pixels/nm)")
+    print(f"\n📐 MEEP grid size (integer pixels):")
+    print(f"  • ny (y direction): {target_ny} points ({size_y_nm:.2f} nm × {resolution_nm} pixels/nm = {target_ny})")
+    print(f"  • nz (z direction): {target_nz} points ({size_z_nm:.2f} nm × {resolution_nm} pixels/nm = {target_nz})")
     
     # Resample mask to MEEP grid resolution
     resampled_mask = resample_mask_to_cell_size(mask, target_ny, target_nz)
@@ -681,8 +686,18 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     )
     
     # Cell and boundary (nm units)
-    cell_size = mp.Vector3(size_x_nm + 2*pml_nm, size_y_nm, size_z_nm)
+    # Ensure total cell size has integer number of pixels
+    total_x_nm = size_x_nm + 2*pml_nm
+    n_x = int(np.round(total_x_nm * resolution_nm))
+    total_x_nm_adjusted = n_x / resolution_nm
+    
+    cell_size = mp.Vector3(total_x_nm_adjusted, size_y_nm, size_z_nm)
     pml_layers = [mp.PML(thickness=pml_nm, direction=mp.X)]
+    
+    print(f"\n📐 Total cell size (with PML, adjusted for integer pixels):")
+    print(f"  • X: {total_x_nm_adjusted:.2f} nm ({n_x} pixels)")
+    print(f"  • Y: {size_y_nm:.2f} nm ({target_ny} pixels)")
+    print(f"  • Z: {size_z_nm:.2f} nm ({target_nz} pixels)")
     
     # k-vector for plane wave
     k_vec = mp.Vector3(n_base*frequency, 0, 0)

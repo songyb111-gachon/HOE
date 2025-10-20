@@ -251,9 +251,10 @@ CELL_SIZE_SCALE = 1.0      # 패턴 크기 스케일 조정 (필요시)
 - ✅ **모든 단위 nm로 통일**: random_pillar_generator와 동일한 단위 사용
 - ✅ **물리적 파라미터는 HOE 표준**: 해상도(0.03 pixels/nm), PML(1500 nm), 파장(535 nm), 굴절률 변조(Δn=0.04)
 - ✅ **셀 크기는 패턴에 맞춤**: y, z 방향은 실제 마스크 크기에서 자동 계산 (왜곡 방지)
-- ✅ **1 픽셀 = 1 nm**: 4096×4096 픽셀 마스크 = 4096×4096 nm 셀
+- ✅ **1 픽셀 = 1 nm**: 4096×4096 픽셀 마스크 → 4100×4100 nm 셀 (정수 픽셀로 자동 조정)
 - ✅ **필름 두께**: 600 nm (0.6 μm) - 파장 정도의 두께
 - ✅ **시뮬레이션 시간 자동 계산**: 광원-모니터 거리 및 굴절률을 고려하여 충분한 시간 자동 설정
+- ✅ **정수 픽셀 자동 조정**: MEEP 경고를 방지하기 위해 셀 크기를 자동으로 가장 가까운 정수 픽셀로 조정 (조정량 < 0.1%)
 
 ### 출력 결과
 
@@ -264,14 +265,14 @@ CELL_SIZE_SCALE = 1.0      # 패턴 크기 스케일 조정 (필요시)
    - 모든 콘솔 출력 자동 저장
 
 2. **굴절률 분포** (시뮬레이션 검증):
-   - `meep_refractive_index_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.png`
+   - `meep_refractive_index_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4100x4100nm_YYYYMMDD_HHMMSS.png`
    - YZ plane: 실제 MEEP 굴절률 분포 (랜덤 필러 패턴)
    - XZ plane: 측면 뷰 (기둥 영역 표시)
    - XY plane: 상단 뷰
    - 히스토그램: 굴절률 분포 통계
 
 3. **위상맵 분석**:
-   - `phase_map_analysis_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.png`
+   - `phase_map_analysis_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4100x4100nm_YYYYMMDD_HHMMSS.png`
      - Phase map (YZ plane): 투과 전자기장 위상 (-π ~ π)
      - Amplitude map: 전기장 크기 |Ez|
      - Intensity map: 총 강도 (|Ex|² + |Ey|² + |Ez|²)
@@ -280,13 +281,13 @@ CELL_SIZE_SCALE = 1.0      # 패턴 크기 스케일 조정 (필요시)
      - Phase profile: y=0에서의 위상 프로파일
 
 4. **전자기장 시각화**:
-   - `field_xy_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.png`
+   - `field_xy_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4100x4100nm_YYYYMMDD_HHMMSS.png`
    - Ez 필드 분포 (XY plane, z=0)
    - 모니터 위치 및 기둥 영역 표시
 
 5. **numpy 배열** (`meep_output/` 디렉토리):
-   - `phase_map_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.npy`
-   - `amplitude_map_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.npy`
+   - `phase_map_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4100x4100nm_YYYYMMDD_HHMMSS.npy`
+   - `amplitude_map_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4100x4100nm_YYYYMMDD_HHMMSS.npy`
 
 **파일명 형식 설명:**
 - `wl535nm`: 파장 535 nm
@@ -295,8 +296,10 @@ CELL_SIZE_SCALE = 1.0      # 패턴 크기 스케일 조정 (필요시)
 - `nb1.50`: 기본 굴절률 n_base = 1.5
 - `res0.030`: 해상도 0.03 pixels/nm
 - `inc0deg`: 입사각 0도
-- `size4096x4096nm`: 셀 크기 4096×4096 nm
+- `size4100x4100nm`: 셀 크기 4100×4100 nm (정수 픽셀로 조정된 값)
 - `YYYYMMDD_HHMMSS`: 타임스탬프
+
+**참고**: 원본 마스크는 4096×4096이지만, MEEP 시뮬레이션에서는 해상도(0.03 pixels/nm)와의 호환성을 위해 4100×4100 nm로 자동 조정됩니다 (약 0.1% 차이).
 
 #### 콘솔/로그 출력
 
@@ -315,16 +318,22 @@ Mask size: (4096, 4096) (height × width)
 
 📐 Cell size from mask:
   • Mask size: (4096, 4096) pixels (height × width)
-  • Assuming 1 pixel = 1 nm
-  • Cell size y: 4096 nm = 4.096 μm
-  • Cell size z: 4096 nm = 4.096 μm
+  • 1 pixel = 1 nm
+  • Raw cell size: 4096 × 4096 nm (Y × Z)
+  • Adjusted cell size: 4100.00 × 4100.00 nm (Y × Z)
+  • Adjustment: 4.00 nm (0.098%)
   • Scale factor: 1.0
 
-📐 MEEP grid size:
-  • ny (y direction): 123 points (4.096 μm × 30 pixels/μm)
-  • nz (z direction): 123 points (4.096 μm × 30 pixels/μm)
+📐 MEEP grid size (integer pixels):
+  • ny (y direction): 123 points (4100.00 nm × 0.03 pixels/nm = 123)
+  • nz (z direction): 123 points (4100.00 nm × 0.03 pixels/nm = 123)
 
-  📐 Resampling mask to MEEP grid:
+📐 Total cell size (with PML, adjusted for integer pixels):
+  • X: 23000.00 nm (690 pixels)
+  • Y: 4100.00 nm (123 pixels)
+  • Z: 4100.00 nm (123 pixels)
+
+📐 Resampling mask to MEEP grid:
     • Original mask: (4096, 4096) pixels (height × width)
     • Target MEEP grid: (123 × 123) points (z × y)
     • Zoom factors: (z=0.0300, y=0.0300)
@@ -332,8 +341,8 @@ Mask size: (4096, 4096) (height × width)
     • Resampled shape: (123, 123) (nz × ny)
 
 📋 Simulation parameters (all in nm):
-  • Cell size: 20000 × 4096 × 4096 nm
-  • Pillar size: 600 × 4096 × 4096 nm
+  • Cell size: 20000 × 4100 × 4100 nm (X × Y × Z, adjusted for integer pixels)
+  • Pillar size: 600 × 4100 × 4100 nm
   • Resolution: 0.03 pixels/nm
   • Wavelength: 535 nm
   • Incident angle: 0° (normal incidence)
