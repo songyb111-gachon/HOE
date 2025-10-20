@@ -5,9 +5,14 @@ random_pillar_*_mask.npy
 # MEEP 시뮬레이션 출력 파일
 phase_map_*.png
 phase_map_*.npy
+amplitude_map_*.npy
+phase_map_analysis_*.png
+meep_refractive_index_*.png
+field_xy_*.png
 
 # MEEP 출력 디렉토리
 meep_output/
+logs/
 
 # Python 캐시 및 바이트코드
 __pycache__/

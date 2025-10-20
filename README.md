@@ -43,7 +43,7 @@ DOMAIN_WIDTH = 4096           # 시뮬레이션 영역 너비 (nm)
 DOMAIN_HEIGHT = 4096          # 시뮬레이션 영역 높이 (nm)
 
 # 기둥 밀도 제어
-INITIAL_DENSITY = 30.0        # 초기 기둥 밀도 (/μm²)
+INITIAL_DENSITY = 40.0        # 초기 기둥 밀도 (/μm²)
                               # 높을수록 기둥이 많아짐
                               # 권장값: 10-50 (낮은 밀도), 50-100 (중간 밀도)
 
@@ -52,8 +52,8 @@ MAX_ITERATIONS = 10000        # 최대 반복 횟수
 RANDOM_SEED = 42              # 랜덤 시드 (재현성을 위해)
                               # None으로 설정하면 매번 다른 결과
 
-# 출력 파일 이름
-OUTPUT_FILE = 'random_pillar_slice.png'
+# 출력 파일 이름 (타임스탬프 자동 추가)
+OUTPUT_FILE = f'random_pillar_{timestamp}.png'
 ```
 
 ### 프로그래밍 방식 사용
@@ -118,10 +118,10 @@ print(f"충진율: {np.sum(mask) / mask.size * 100:.2f}%")
 | `MIN_EDGE_DISTANCE` | 기둥 간 최소 edge-to-edge 거리 (nm) | 5.0 | 0-20 |
 | `DOMAIN_WIDTH` | 시뮬레이션 영역 너비 (nm) | 4096 | 512-8192 |
 | `DOMAIN_HEIGHT` | 시뮬레이션 영역 높이 (nm) | 4096 | 512-8192 |
-| `INITIAL_DENSITY` | 초기 기둥 밀도 (/μm²) | 30.0 | 10-100 |
+| `INITIAL_DENSITY` | 초기 기둥 밀도 (/μm²) | 40.0 | 10-100 |
 | `MAX_ITERATIONS` | 최대 반복 횟수 | 10000 | 1000-50000 |
 | `RANDOM_SEED` | 랜덤 시드 (재현성) | 42 | 정수 or None |
-| `OUTPUT_FILE` | 출력 파일 이름 | 'random_pillar_slice.png' | 임의의 파일명 |
+| `OUTPUT_FILE` | 출력 파일 이름 | 타임스탬프 포함 | 임의의 파일명 |
 
 ### 밀도 조절 가이드
 
@@ -138,7 +138,7 @@ print(f"충진율: {np.sum(mask) / mask.size * 100:.2f}%")
   기둥 반지름: 45.0 nm
   최소 간격: 5.0 nm
   영역 크기: 4096 × 4096 nm²
-  초기 밀도: 30.0 /μm²
+  초기 밀도: 40.0 /μm²
   랜덤 시드: 42
   출력 파일: random_pillar_slice.png
 ============================================================
@@ -149,7 +149,7 @@ print(f"충진율: {np.sum(mask) / mask.size * 100:.2f}%")
 시뮬레이션 영역: 4096 x 4096 nm²
 기둥 개수 제약: 없음 (임의의 개수)
 --------------------------------------------------
-Step 1: 임의의 503개 기둥 위치를 무작위로 생성 중...
+Step 1: 임의의 671개 기둥 위치를 무작위로 생성 중...
         초기 위치 생성 완료
 Step 2: 기둥 간 거리 검사 및 조정 중...
         반복 횟수: 100, 조정 중...
@@ -210,31 +210,49 @@ python meep_phase_simulation.py
 
 ```python
 # ================== Simulation Parameters ==================
+# HOE 시뮬레이션 코드의 물리적 파라미터 + 랜덤 필러 패턴 크기
 
-# Resolution and PML
-RESOLUTION_UM = 20          # 해상도 (pixels/μm) - 낮을수록 빠름
-PML_UM = 0.5               # PML 두께 (μm)
+# Resolution and PML (HOE 코드 표준)
+RESOLUTION_UM = 30          # 해상도 (pixels/μm) - HOE 표준값
+PML_UM = 1.5               # PML 두께 (μm) - HOE 표준값
 
 # Simulation cell size (μm)
-SIZE_X_UM = 3.0            # x 방향 (전파 방향)
-SIZE_Y_UM_SCALE = 1.0      # y 방향 스케일 (마스크에서 자동 설정)
-SIZE_Z_UM_SCALE = 1.0      # z 방향 스케일 (마스크에서 자동 설정)
+SIZE_X_UM = 20.0           # x 방향 (전파 방향) - HOE 표준값
+# SIZE_Y_UM, SIZE_Z_UM은 마스크 크기에서 자동 계산 (1 픽셀 = 1 nm 가정)
 
-# Random pillar structure
-PILLAR_HEIGHT_UM = 0.2     # 기둥 높이 (μm) = 200nm
-PILLAR_X_CENTER = 0.0      # 기둥 중심 x 위치 (μm)
+# Random pillar structure parameters (nm)
+PILLAR_HEIGHT_NM = 600.0   # 기둥(필름) 두께 (nm) = 0.6 μm
+PILLAR_X_CENTER = 0.0      # 기둥 중심 x 위치 (nm) - 셀 중앙
 
-# Optical parameters
-WAVELENGTH_UM = 0.633      # 파장 (μm) - 633nm 적색 레이저
-INCIDENT_DEG = 0.0         # 입사각 (도)
+# Optical parameters (nm)
+WAVELENGTH_NM = 535.0      # 파장 (nm) - 535nm 녹색 레이저
+INCIDENT_DEG = 0.0         # 입사각 (도) - 수직 입사
 
-# Material properties
-N_BASE = 1.5               # 기본 굴절률 (배경)
-DELTA_N = 0.5              # 굴절률 변조 (기둥 = n_base + delta_n)
+# Material properties (HOE 코드 표준)
+N_BASE = 1.5               # 기본 굴절률 (HOE 표준)
+DELTA_N = 0.04             # 굴절률 변조 (HOE 표준값 - 현실적)
+
+# Multi-parameter sweep (nm 단위)
+PARAMETER_SWEEP = {
+    'pillar_height_nm': [600.0],  # 기둥(필름) 두께 (nm)
+    'wavelength_nm': [405.0, 532.0, 633.0],  # RGB 파장 (nm)
+    'delta_n': [0.04],  # 굴절률 변조
+    'incident_deg': [0.0]  # 입사각
+}
 
 # Input file
 MASK_FILE = 'random_pillar_slice_mask.npy'  # 랜덤 필러 마스크
+
+# Cell size scaling factor (optional, 1.0 = use mask size as-is)
+CELL_SIZE_SCALE = 1.0      # 패턴 크기 스케일 조정 (필요시)
 ```
+
+**주요 특징:**
+- ✅ **모든 단위 nm로 통일**: random_pillar_generator와 동일한 단위 사용
+- ✅ **물리적 파라미터는 HOE 표준**: 해상도(0.03 pixels/nm), PML(1500 nm), 파장(535 nm), 굴절률 변조(Δn=0.04)
+- ✅ **셀 크기는 패턴에 맞춤**: y, z 방향은 실제 마스크 크기에서 자동 계산 (왜곡 방지)
+- ✅ **1 픽셀 = 1 nm**: 4096×4096 픽셀 마스크 = 4096×4096 nm 셀
+- ✅ **필름 두께**: 600 nm (0.6 μm) - 파장 정도의 두께
 
 ### 출력 결과
 
@@ -245,14 +263,14 @@ MASK_FILE = 'random_pillar_slice_mask.npy'  # 랜덤 필러 마스크
    - 모든 콘솔 출력 자동 저장
 
 2. **굴절률 분포** (시뮬레이션 검증):
-   - `meep_random_pillar_refractive_index.png`
+   - `meep_refractive_index_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.png`
    - YZ plane: 실제 MEEP 굴절률 분포 (랜덤 필러 패턴)
    - XZ plane: 측면 뷰 (기둥 영역 표시)
    - XY plane: 상단 뷰
    - 히스토그램: 굴절률 분포 통계
 
 3. **위상맵 분석**:
-   - `random_pillar_phase_map_analysis.png`
+   - `phase_map_analysis_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.png`
      - Phase map (YZ plane): 투과 전자기장 위상 (-π ~ π)
      - Amplitude map: 전기장 크기 |Ez|
      - Intensity map: 총 강도 (|Ex|² + |Ey|² + |Ez|²)
@@ -261,19 +279,29 @@ MASK_FILE = 'random_pillar_slice_mask.npy'  # 랜덤 필러 마스크
      - Phase profile: y=0에서의 위상 프로파일
 
 4. **전자기장 시각화**:
-   - `random_pillar_field_xy.png`
+   - `field_xy_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.png`
    - Ez 필드 분포 (XY plane, z=0)
    - 모니터 위치 및 기둥 영역 표시
 
 5. **numpy 배열** (`meep_output/` 디렉토리):
-   - `phase_map_YYYYMMDD_HHMMSS.npy`: 위상맵 원본 데이터
-   - `amplitude_map_YYYYMMDD_HHMMSS.npy`: 진폭맵 원본 데이터
+   - `phase_map_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.npy`
+   - `amplitude_map_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4096x4096nm_YYYYMMDD_HHMMSS.npy`
+
+**파일명 형식 설명:**
+- `wl535nm`: 파장 535 nm
+- `h600nm`: 필름 두께 600 nm
+- `dn0.040`: 굴절률 변조 Δn = 0.04
+- `nb1.50`: 기본 굴절률 n_base = 1.5
+- `res0.030`: 해상도 0.03 pixels/nm
+- `inc0deg`: 입사각 0도
+- `size4096x4096nm`: 셀 크기 4096×4096 nm
+- `YYYYMMDD_HHMMSS`: 타임스탬프
 
 #### 콘솔/로그 출력
 
 ```
 ============================================================
-🔬 Random Pillar + Plane Wave + Phase Map Simulation
+🔬 Random Pillar + Plane Wave + Phase Map Simulation (HOE-based)
 ============================================================
 
 === Loading Random Pillar Mask ===
@@ -284,20 +312,44 @@ Mask size: (4096, 4096) (height × width)
   • Fill ratio: 19.1%
   • Pattern type: Random pillar (non-periodic)
 
-📋 Simulation parameters:
-  • Cell size: 3.0 × 4.10 × 4.10 μm
-  • Pillar size: 0.2 × 4.10 × 4.10 μm
-  • Resolution: 20 pixels/μm
-  • Wavelength: 0.633 μm (633 nm)
+📐 Cell size from mask:
+  • Mask size: (4096, 4096) pixels (height × width)
+  • Assuming 1 pixel = 1 nm
+  • Cell size y: 4096 nm = 4.096 μm
+  • Cell size z: 4096 nm = 4.096 μm
+  • Scale factor: 1.0
+
+📐 MEEP grid size:
+  • ny (y direction): 123 points (4.096 μm × 30 pixels/μm)
+  • nz (z direction): 123 points (4.096 μm × 30 pixels/μm)
+
+  📐 Resampling mask to MEEP grid:
+    • Original mask: (4096, 4096) pixels (height × width)
+    • Target MEEP grid: (123 × 123) points (z × y)
+    • Zoom factors: (z=0.0300, y=0.0300)
+    • Fill ratio: 19.1% → 19.0%
+    • Resampled shape: (123, 123) (nz × ny)
+
+📋 Simulation parameters (all in nm):
+  • Cell size: 20000 × 4096 × 4096 nm
+  • Pillar size: 600 × 4096 × 4096 nm
+  • Resolution: 0.03 pixels/nm
+  • Wavelength: 535 nm
   • Incident angle: 0° (normal incidence)
   • Base index: 1.5
-  • Pillar index: 2.0
-  • Δn: 0.5
+  • Pillar index: 1.54 (n_base + Δn)
+  • Δn: 0.04 (HOE standard - realistic)
+  • Pattern: Random pillar (non-periodic)
 
-=== Generating Random Pillar Geometry ===
-  • Total blocks: 3,199,854
-  • Pillar pixels: 3,199,854
-  • Block size: 0.2000 × 0.0010 × 0.0010 μm
+=== Generating Random Pillar Geometry (HOE-style, nm units) ===
+Mask size: (123, 123) (nz × ny)
+Base refractive index: 1.5
+Refractive index modulation: Δn = 0.04
+Pillar refractive index: 1.54
+Pillar thickness: 600 nm
+  • Total blocks: 2,874
+  • Pillar pixels: 2,874
+  • Block size: 600 × 33.3 × 33.3 nm
 
 🚀 Running simulation...
   • Geometry count: 3,199,854
