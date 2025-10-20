@@ -4,6 +4,7 @@ from matplotlib.patches import Circle
 import matplotlib.patches as mpatches
 import warnings
 import logging
+from datetime import datetime
 
 # matplotlib 폰트 경고 메시지 억제
 warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
@@ -315,11 +316,14 @@ def main():
     
     # -------------------- 출력 설정 --------------------
     
-    OUTPUT_FILE = 'random_pillar_slice.png'
+    # 현재 날짜와 시간을 파일명에 추가
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    OUTPUT_FILE = f'random_pillar_{timestamp}.png'
     # 생성될 이미지 파일의 이름
     # - PNG 형식의 이진 마스크 이미지로 저장됩니다
     # - 같은 이름의 .npy 파일(numpy 배열)도 함께 생성됩니다
-    # - 예: 'output.png', 'pillar_mask_45nm.png', 'test_01.png'
+    # - 파일명 형식: random_pillar_YYYYMMDD_HHMMSS.png
+    # - 예: random_pillar_20241020_143052.png
     
     # ========================================
     
