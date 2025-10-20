@@ -2,25 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import matplotlib.patches as mpatches
-import platform
-
-# Windows 한글 폰트 설정
-if platform.system() == 'Windows':
-    try:
-        import matplotlib.font_manager as fm
-        # Windows에서 사용 가능한 한글 폰트 설정
-        plt.rcParams['font.family'] = 'Malgun Gothic'  # 맑은 고딕
-        plt.rcParams['axes.unicode_minus'] = False  # 마이너스 기호 깨짐 방지
-    except:
-        # 폰트 설정 실패 시 기본 설정 사용
-        pass
-elif platform.system() == 'Darwin':  # macOS
-    plt.rcParams['font.family'] = 'AppleGothic'
-else:  # Linux
-    try:
-        plt.rcParams['font.family'] = 'NanumGothic'
-    except:
-        pass
 
 class RandomPillarGenerator:
     """랜덤 필러 생성 알고리즘"""
