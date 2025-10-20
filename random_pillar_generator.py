@@ -183,10 +183,10 @@ class RandomPillarGenerator:
         ax.imshow(mask, cmap='gray', interpolation='nearest', origin='upper')
         ax.set_xlabel('X (nm)', fontsize=12, fontweight='bold')
         ax.set_ylabel('Y (nm)', fontsize=12, fontweight='bold')
-        ax.set_title(f'랜덤 필러 이진 마스크 - {width}×{height} 픽셀\n'
-                    f'기둥 개수: {len(self.pillars)} | '
-                    f'반지름: {self.pillar_radius} nm | '
-                    f'White(1): 기둥, Black(0): 빈 공간',
+        ax.set_title(f'Random Pillar Binary Mask - {width}×{height} pixels\n'
+                    f'Pillar Count: {len(self.pillars)} | '
+                    f'Radius: {self.pillar_radius} nm | '
+                    f'White(1): Pillar, Black(0): Empty',
                     fontsize=12, fontweight='bold', pad=20)
         
         # 통계 정보
@@ -194,10 +194,10 @@ class RandomPillarGenerator:
         total_pixels = mask.size
         fill_ratio = (filled_pixels / total_pixels) * 100
         
-        stats_text = (f'영역: {width} × {height} nm²\n'
-                     f'기둥 픽셀: {filled_pixels:,}\n'
-                     f'전체 픽셀: {total_pixels:,}\n'
-                     f'충진율: {fill_ratio:.2f}%')
+        stats_text = (f'Domain: {width} × {height} nm²\n'
+                     f'Pillar pixels: {filled_pixels:,}\n'
+                     f'Total pixels: {total_pixels:,}\n'
+                     f'Fill ratio: {fill_ratio:.2f}%')
         
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.9)
         ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
