@@ -188,7 +188,15 @@ numpy 배열 저장 완료: random_pillar_slice_mask.npy
 
 ## MEEP 시뮬레이션
 
-생성된 랜덤 필러 패턴에 평면파를 입사시켜 위상맵을 계산합니다.
+생성된 랜덤 필러 패턴에 평면파를 입사시켜 위상맵(phase map)을 계산합니다.
+
+### 특징
+
+- **HOE 시뮬레이션 구조 기반**: 물리적으로 정확한 평면파 입사 구현
+- **3D FDTD 시뮬레이션**: MEEP을 사용한 완전한 전자기파 시뮬레이션
+- **다중 모니터**: Front/Back 위치에 여러 모니터 배치하여 투과/반사 분석
+- **위상맵 분석**: 투과된 전자기장의 위상 분포 계산
+- **자동 로그 저장**: 모든 콘솔 출력을 타임스탬프가 포함된 로그 파일로 저장
 
 ### 실행 방법
 
@@ -198,30 +206,119 @@ python meep_phase_simulation.py
 
 ### 파라미터 조정
 
-`meep_phase_simulation.py` 파일의 `main()` 함수에서 파라미터를 수정하세요:
+`meep_phase_simulation.py` 파일 상단의 파라미터 섹션에서 수정하세요:
 
 ```python
-# 입력 파일
-MASK_FILE = 'random_pillar_slice_mask.npy'
+# ================== Simulation Parameters ==================
 
-# 광학 파라미터
-WAVELENGTH = 633         # 입사파 파장 (nm)
-PILLAR_HEIGHT = 200      # 기둥 높이 (nm)
-PILLAR_INDEX = 2.0       # 기둥 굴절률
-BACKGROUND_INDEX = 1.0   # 배경 굴절률
+# Resolution and PML
+RESOLUTION_UM = 20          # 해상도 (pixels/μm) - 낮을수록 빠름
+PML_UM = 0.5               # PML 두께 (μm)
 
-# 시뮬레이션 파라미터
-RESOLUTION = 10          # 공간 해상도 (픽셀/nm)
-PML_THICKNESS = 100      # PML 두께 (nm)
+# Simulation cell size (μm)
+SIZE_X_UM = 3.0            # x 방향 (전파 방향)
+SIZE_Y_UM_SCALE = 1.0      # y 방향 스케일 (마스크에서 자동 설정)
+SIZE_Z_UM_SCALE = 1.0      # z 방향 스케일 (마스크에서 자동 설정)
+
+# Random pillar structure
+PILLAR_HEIGHT_UM = 0.2     # 기둥 높이 (μm) = 200nm
+PILLAR_X_CENTER = 0.0      # 기둥 중심 x 위치 (μm)
+
+# Optical parameters
+WAVELENGTH_UM = 0.633      # 파장 (μm) - 633nm 적색 레이저
+INCIDENT_DEG = 0.0         # 입사각 (도)
+
+# Material properties
+N_BASE = 1.5               # 기본 굴절률 (배경)
+DELTA_N = 0.5              # 굴절률 변조 (기둥 = n_base + delta_n)
+
+# Input file
+MASK_FILE = 'random_pillar_slice_mask.npy'  # 랜덤 필러 마스크
 ```
 
 ### 출력 결과
 
-- `phase_map_YYYYMMDD_HHMMSS.npy`: 위상맵 numpy 배열
-- `phase_map_YYYYMMDD_HHMMSS.png`: 위상맵 시각화 이미지
-  - 원본 마스크
-  - 위상맵 (HSV 컬러맵)
-  - 위상 분포 히스토그램
+#### 자동 생성 파일
+
+1. **로그 파일** (`logs/` 디렉토리):
+   - `random_pillar_phase_simulation_YYYYMMDD_HHMMSS.txt`
+   - 모든 콘솔 출력 자동 저장
+
+2. **굴절률 분포** (시뮬레이션 검증):
+   - `meep_random_pillar_refractive_index.png`
+   - YZ plane: 실제 MEEP 굴절률 분포 (랜덤 필러 패턴)
+   - XZ plane: 측면 뷰 (기둥 영역 표시)
+   - XY plane: 상단 뷰
+   - 히스토그램: 굴절률 분포 통계
+
+3. **위상맵 분석**:
+   - `random_pillar_phase_map_analysis.png`
+     - Phase map (YZ plane): 투과 전자기장 위상 (-π ~ π)
+     - Amplitude map: 전기장 크기 |Ez|
+     - Intensity map: 총 강도 (|Ex|² + |Ey|² + |Ez|²)
+     - Phase histogram: 위상 분포
+     - Amplitude histogram: 진폭 분포
+     - Phase profile: y=0에서의 위상 프로파일
+
+4. **전자기장 시각화**:
+   - `random_pillar_field_xy.png`
+   - Ez 필드 분포 (XY plane, z=0)
+   - 모니터 위치 및 기둥 영역 표시
+
+5. **numpy 배열** (`meep_output/` 디렉토리):
+   - `phase_map_YYYYMMDD_HHMMSS.npy`: 위상맵 원본 데이터
+   - `amplitude_map_YYYYMMDD_HHMMSS.npy`: 진폭맵 원본 데이터
+
+#### 콘솔/로그 출력
+
+```
+============================================================
+🔬 Random Pillar + Plane Wave + Phase Map Simulation
+============================================================
+
+=== Loading Random Pillar Mask ===
+Mask file: random_pillar_slice_mask.npy
+Mask size: (4096, 4096) (height × width)
+  • Total pixels: 16,777,216
+  • Pillar pixels (1): 3,199,854
+  • Fill ratio: 19.1%
+  • Pattern type: Random pillar (non-periodic)
+
+📋 Simulation parameters:
+  • Cell size: 3.0 × 4.10 × 4.10 μm
+  • Pillar size: 0.2 × 4.10 × 4.10 μm
+  • Resolution: 20 pixels/μm
+  • Wavelength: 0.633 μm (633 nm)
+  • Incident angle: 0° (normal incidence)
+  • Base index: 1.5
+  • Pillar index: 2.0
+  • Δn: 0.5
+
+=== Generating Random Pillar Geometry ===
+  • Total blocks: 3,199,854
+  • Pillar pixels: 3,199,854
+  • Block size: 0.2000 × 0.0010 × 0.0010 μm
+
+🚀 Running simulation...
+  • Geometry count: 3,199,854
+  • Monitor count: 4
+
+✅ Simulation complete!
+
+📊 Calculating phase map from transmitted field...
+  📐 Phase map statistics:
+    • Mean phase: -0.0234 rad (-0.01π)
+    • Std phase: 1.2345 rad (0.39π)
+    • Phase range: 6.2831 rad (2.00π)
+
+🎉 Random pillar phase map simulation complete!
+📁 Output files:
+  • meep_random_pillar_refractive_index.png
+  • random_pillar_phase_map_analysis.png
+  • random_pillar_field_xy.png
+  • meep_output/phase_map_*.npy
+  • meep_output/amplitude_map_*.npy
+```
 
 ### 워크플로우
 
@@ -229,22 +326,50 @@ PML_THICKNESS = 100      # PML 두께 (nm)
    ```bash
    python random_pillar_generator.py
    ```
-   → `random_pillar_YYYYMMDD_HHMMSS_mask.npy` 생성
+   → `random_pillar_YYYYMMDD_HHMMSS.png` 및 `random_pillar_YYYYMMDD_HHMMSS_mask.npy` 생성
 
-2. **MEEP 시뮬레이션**:
-   - `MASK_FILE`을 생성된 `.npy` 파일로 설정
-   - `python meep_phase_simulation.py` 실행
-   - `meep_output/` 디렉토리에 결과 저장
+2. **MEEP 시뮬레이션 실행**:
+   - `meep_phase_simulation.py`의 `MASK_FILE`을 생성된 `.npy` 파일로 설정
+   - ```bash
+     python meep_phase_simulation.py
+     ```
+   - 시뮬레이션 진행 중 자동으로 로그 파일 생성 (`logs/` 디렉토리)
+   - 결과 파일들이 자동 생성 (현재 디렉토리 및 `meep_output/`)
 
-### 굴절률 참고값
+3. **결과 분석**:
+   - `random_pillar_phase_map_analysis.png`: 위상맵 시각화
+   - `meep_output/phase_map_*.npy`: 추가 분석용 원본 데이터
+   - `logs/*.txt`: 전체 시뮬레이션 로그
 
-| 재료 | 굴절률 (@ 633nm) |
-|------|-----------------|
+### 물리적 특성
+
+#### 굴절률 참고값 (@ 633nm)
+
+| 재료 | 굴절률 |
+|------|--------|
 | 공기 | 1.0 |
+| PMMA | 1.49 |
 | SiO2 (석영) | 1.46 |
+| 포토레지스트 | 1.5-1.7 |
 | TiO2 | 2.5 |
-| Si (실리콘) | 3.5 |
 | GaN | 2.3 |
+| Si (실리콘) | 3.5 |
+
+#### 시뮬레이션 구조
+
+- **평면파 소스**: Bloch k-vector를 사용한 물리적으로 정확한 평면파
+- **경계 조건**: PML (Perfectly Matched Layer) - 무반사 경계
+- **모니터 배치**:
+  - Front monitors: 기둥 앞쪽 (입사파 측)
+  - Back monitors: 기둥 뒤쪽 (투과파 측, 위상맵 계산)
+- **전자기장 성분**: Ex, Ey, Ez 모두 기록
+
+### 주의사항
+
+- **메모리**: 고해상도 시뮬레이션은 많은 메모리를 사용합니다
+  - `RESOLUTION_UM`을 낮추면 (예: 10) 메모리 사용량과 시간이 줄어듭니다
+- **시뮬레이션 시간**: 마스크 크기와 해상도에 따라 수 분~수 시간 소요
+- **로그 파일**: `logs/` 디렉토리에 자동 저장되므로 별도 관리 필요
 
 ## 라이센스
 
