@@ -1,0 +1,37 @@
+# 랜덤 필러 생성기 출력 파일
+random_pillar_*.png
+random_pillar_*_mask.npy
+
+# MEEP 시뮬레이션 출력 파일
+phase_map_*.png
+phase_map_*.npy
+
+# MEEP 출력 디렉토리
+meep_output/
+
+# Python 캐시 및 바이트코드
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 가상환경
+venv/
+env/
+ENV/
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE 설정 파일
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS 생성 파일
+.DS_Store
+Thumbs.db
+

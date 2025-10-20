@@ -1,4 +1,5 @@
 numpy>=1.21.0
 matplotlib>=3.4.0
+meep>=1.25.0
 
 
