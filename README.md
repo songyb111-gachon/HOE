@@ -232,6 +232,11 @@ INCIDENT_DEG = 0.0         # 입사각 (도) - 수직 입사
 N_BASE = 1.5               # 기본 굴절률 (HOE 표준)
 DELTA_N = 0.04             # 굴절률 변조 (HOE 표준값 - 현실적)
 
+# Auto-termination settings
+AUTO_TERMINATE = True      # 자동 종료 활성화
+DECAY_THRESHOLD = 1e-4     # 필드 감쇠 임계값 (상대값, 정상 상태 판단)
+SOURCE_WIDTH_FACTOR = 10   # GaussianSource 폭 (파장 배수)
+
 # Multi-parameter sweep (nm 단위)
 PARAMETER_SWEEP = {
     'pillar_height_nm': [600.0],  # 기둥(필름) 두께 (nm)
@@ -253,8 +258,30 @@ CELL_SIZE_SCALE = 1.0      # 패턴 크기 스케일 조정 (필요시)
 - ✅ **셀 크기는 패턴에 맞춤**: y, z 방향은 실제 마스크 크기에서 자동 계산 (왜곡 방지)
 - ✅ **1 픽셀 = 1 nm**: 4096×4096 픽셀 마스크 → 4100×4100 nm 셀 (정수 픽셀로 자동 조정)
 - ✅ **필름 두께**: 600 nm (0.6 μm) - 파장 정도의 두께
-- ✅ **시뮬레이션 시간 자동 계산**: 광원-모니터 거리 및 굴절률을 고려하여 충분한 시간 자동 설정
+- ✅ **굴절률 매핑**: Pattern 0 (배경) = X 방향 **600 nm 전체**가 n 1.5, Pattern 1 (기둥) = X 방향 **600 nm 전체**가 n 1.54
+- ✅ **자동 종료**: 정상 상태(steady state) 도달 시 자동 종료 (field decay threshold: 1e-4)
+- ✅ **GaussianSource**: 자동 종료를 위해 Gaussian 펄스 사용 (10 wavelength periods)
 - ✅ **정수 픽셀 자동 조정**: MEEP 경고를 방지하기 위해 셀 크기를 자동으로 가장 가까운 정수 픽셀로 조정 (조정량 < 0.1%)
+
+**구조 설명:**
+```
+        Y-Z 평면 (패턴)
+        ┌─────────┐
+        │ 0 1 0 1 │  ← Pattern (0 또는 1)
+        │ 1 1 0 0 │
+        │ 0 0 1 1 │
+        └─────────┘
+              ↓
+        X 방향 (두께)
+    ◄────600 nm────►
+    ┌──────────────┐
+    │   n = 1.5    │  ← Pattern = 0 위치: 전체 두께 n = 1.5
+    │   또는       │
+    │   n = 1.54   │  ← Pattern = 1 위치: 전체 두께 n = 1.54
+    └──────────────┘
+```
+
+**핵심:** YZ 평면의 각 픽셀 위치에서, X 방향 **600 nm 전체 두께**가 해당 패턴값에 따라 굴절률이 결정됩니다.
 
 ### 출력 결과
 
@@ -266,10 +293,10 @@ CELL_SIZE_SCALE = 1.0      # 패턴 크기 스케일 조정 (필요시)
 
 2. **굴절률 분포** (시뮬레이션 검증):
    - `meep_refractive_index_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4100x4100nm_YYYYMMDD_HHMMSS.png`
-   - YZ plane: 실제 MEEP 굴절률 분포 (랜덤 필러 패턴)
-   - XZ plane: 측면 뷰 (기둥 영역 표시)
-   - XY plane: 상단 뷰
-   - 히스토그램: 굴절률 분포 통계
+   - YZ plane: 실제 MEEP 굴절률 분포 (랜덤 필러 패턴, x=0에서)
+   - XZ plane: 측면 뷰 - **Pillar 영역에 집중** (±600 nm 범위)
+   - XY plane: 상단 뷰 - **Pillar 영역에 집중** (±600 nm 범위)
+   - 히스토그램: 굴절률 분포 통계 (중간값은 MEEP subpixel averaging 결과)
 
 3. **위상맵 분석**:
    - `phase_map_analysis_wl535nm_h600nm_dn0.040_nb1.50_res0.030_inc0deg_size4100x4100nm_YYYYMMDD_HHMMSS.png`
@@ -341,34 +368,69 @@ Mask size: (4096, 4096) (height × width)
     • Resampled shape: (123, 123) (nz × ny)
 
 📋 Simulation parameters (all in nm):
-  • Cell size: 20000 × 4100 × 4100 nm (X × Y × Z, adjusted for integer pixels)
-  • Pillar size: 600 × 4100 × 4100 nm
+  • Cell size: 20000 × 4100 × 4100 nm (X × Y × Z)
+  • Pillar thickness: 600 nm
   • Resolution: 0.03 pixels/nm
   • Wavelength: 535 nm
   • Incident angle: 0° (normal incidence)
-  • Base index: 1.5
-  • Pillar index: 1.54 (n_base + Δn)
-  • Δn: 0.04 (HOE standard - realistic)
-  • Pattern: Random pillar (non-periodic)
+
+  Refractive index:
+  • Pattern 0 (background): n = 1.50
+  • Pattern 1 (pillar):     n = 1.54
+  • Δn: 0.040 (HOE standard)
+  • Pattern type: Random pillar (non-periodic)
 
 === Generating Random Pillar Geometry (HOE-style, nm units) ===
 Mask size: (123, 123) (nz × ny)
-Base refractive index: 1.5
-Refractive index modulation: Δn = 0.04
-Pillar refractive index: 1.54
-Pillar thickness: 600 nm
-  • Total blocks: 2,874
+
+📊 Refractive index mapping (X 방향 전체 두께에 적용):
+  • Pattern = 0 (background) → X 방향 600 nm 전체가 n = 1.50
+  • Pattern = 1 (pillar)     → X 방향 600 nm 전체가 n = 1.54 (n_base + Δn)
+  • Δn = 0.040
+
+Pillar structure:
+  • Film thickness (X direction): 600 nm (전체 두께)
+  • Pillar x center: 0 nm
+  • YZ 평면에서 패턴에 따라 X 방향 600 nm 전체 굴절률 변조
+
+Coordinates:
+  • y range: -2048 to 2048 nm (123 points)
+  • z range: -2048 to 2048 nm (123 points)
+Pixel size: 33.33 × 33.33 nm (y × z)
+Generated Block count: 2,874
   • Pillar pixels: 2,874
   • Block size: 600 × 33.3 × 33.3 nm
 
-🚀 Running simulation...
+🌊 Plane wave setup:
+  • k-vector: (0.002804, 0.000000, 0.000000)
+  • Frequency: 0.001869 (1/nm)
+  • Source type: GaussianSource (for auto-termination)
+  • Source width: 5350 nm/c (~10.0 periods)
+  • Source position: x = -8000 nm
+  • Source size: 4100 × 4100 nm
+
+📡 Setting up monitors...
+  📥 Front monitors:
+    • FrontFar: x = -600 nm
+    • FrontNear: x = -400 nm
+  📤 Back monitors:
+    • BackNear: x = 400 nm
+    • BackFar: x = 600 nm
+
+🚀 Running simulation with auto-termination...
   • Geometry count: 3,674
   • Monitor count: 4
-  • Max distance: 8900 nm
-  • Travel time: 13350 nm/c
-  • Total simulation time: 16025 nm/c
+
+📊 Auto-termination settings:
+  • Monitor position: x = 600 nm (farthest back monitor)
+  • Decay threshold: 1.0e-04 (relative)
+  • Component monitored: Ez
+  • Source width: 5350 nm/c (~10.0 periods)
+  • Auto-stop when steady state reached
 
 ✅ Simulation complete!
+  • Final time: 15234 nm/c
+  • Steady state reached (field decayed to 1.0e-04)
 
 📊 Calculating phase map from transmitted field...
   📐 Phase map statistics:

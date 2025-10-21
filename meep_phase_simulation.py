@@ -67,7 +67,8 @@ plt.rcParams['axes.unicode_minus'] = False
 # 모든 단위를 nm로 통일 (random_pillar_generator와 동일)
 
 # Resolution and PML (HOE 물리 파라미터, nm 단위로 변환)
-RESOLUTION_NM = 0.03        # 해상도 (pixels/nm) = 30 pixels/μm
+# ⚠️ Resolution = 1.0 pixels/nm으로 설정하여 마스크 픽셀과 1:1 매칭 (Binary pattern 유지)
+RESOLUTION_NM = 1.0         # 해상도 (pixels/nm) - 1 픽셀 = 1 nm (마스크와 동일)
 PML_NM = 1500.0            # PML 두께 (nm) = 1.5 μm
 
 # Simulation cell size (nm)
@@ -85,6 +86,11 @@ INCIDENT_DEG = 0.0         # 입사각 (도) - 수직 입사
 # Material properties (HOE 표준)
 N_BASE = 1.5               # 기본 굴절률
 DELTA_N = 0.04             # 굴절률 변조 (현실적)
+
+# Auto-termination settings
+AUTO_TERMINATE = True      # 자동 종료 활성화
+DECAY_THRESHOLD = 1e-4     # 필드 감쇠 임계값 (상대값, 정상 상태 판단)
+SOURCE_WIDTH_FACTOR = 10   # GaussianSource 폭 (파장 배수)
 
 # Multi-parameter sweep (nm 단위)
 PARAMETER_SWEEP = {
@@ -219,16 +225,21 @@ def create_random_pillar_geometry(mask, cell_size_x, cell_size_y, cell_size_z,
     - 픽셀별로 Block 생성
     - 모든 단위는 nm
     
+    Refractive index mapping (X 방향 전체 두께에 적용):
+    - Pattern = 0 (background) → X 방향 전체(thickness) n = n_base (default: 1.5)
+    - Pattern = 1 (pillar)     → X 방향 전체(thickness) n = n_base + delta_n (default: 1.54)
+    
     Parameters:
     -----------
     mask : 2D numpy array
         Binary pattern (0 or 1), shape (nz, ny) = (z, y) in MEEP coordinates
+        0 = background (n_base), 1 = pillar (n_base + delta_n)
     cell_size_x, cell_size_y, cell_size_z : float
         Cell size (nm)
     n_base : float
-        Base refractive index (background)
+        Base refractive index for background (pattern = 0)
     delta_n : float
-        Refractive index modulation (pillar_index = n_base + delta_n)
+        Refractive index modulation (pattern = 1 → n = n_base + delta_n)
     thickness_um : float
         Pillar thickness in x direction (nm)
     pillar_x_center : float
@@ -237,19 +248,24 @@ def create_random_pillar_geometry(mask, cell_size_x, cell_size_y, cell_size_z,
     Returns:
     --------
     geometry : list
-        MEEP geometry objects
+        MEEP geometry objects (Blocks for pattern = 1)
     background_material : mp.Medium
-        Background material
+        Background material (n = n_base, for pattern = 0)
     """
     print(f"\n=== Generating Random Pillar Geometry (HOE-style, nm units) ===")
     print(f"Mask size: {mask.shape} (nz × ny)")
-    print(f"Base refractive index: {n_base}")
-    print(f"Refractive index modulation: Δn = {delta_n}")
-    print(f"Pillar refractive index: {n_base + delta_n}")
-    print(f"Pillar thickness: {thickness_um:.0f} nm")
-    print(f"Pillar x center: {pillar_x_center:.0f} nm")
+    print(f"\n📊 Refractive index mapping:")
+    print(f"  • Pattern = 0 (background) → X 방향 {thickness_um:.0f} nm 전체가 n = {n_base:.2f}")
+    print(f"  • Pattern = 1 (pillar)     → X 방향 {thickness_um:.0f} nm 전체가 n = {n_base + delta_n:.2f}")
+    print(f"  • Δn = {delta_n:.3f}")
+    print(f"\nPillar structure:")
+    print(f"  • Film thickness (X direction): {thickness_um:.0f} nm (전체 두께)")
+    print(f"  • Pillar x center: {pillar_x_center:.0f} nm")
+    print(f"  • YZ 평면에서 패턴에 따라 X 방향 {thickness_um:.0f} nm 전체 굴절률 변조")
     
     # Materials (HOE standard)
+    # Pattern 0 (background) = n_base
+    # Pattern 1 (pillar) = n_base + delta_n
     background_material = mp.Medium(index=n_base)
     pillar_material = mp.Medium(index=n_base + delta_n)
     
@@ -271,27 +287,45 @@ def create_random_pillar_geometry(mask, cell_size_x, cell_size_y, cell_size_z,
     print(f"Pixel size: {pixel_size_y:.2f} × {pixel_size_z:.2f} nm (y × z)")
     
     # Create blocks (HOE method: analyze pattern and create blocks)
+    # Pattern = 0 (background) → use background_material (default)
+    # Pattern = 1 (pillar) → create Block with pillar_material
+    # 
+    # ⚠️ 중요: X 방향 thickness_um(600 nm) 전체가 굴절률 변조됨
+    #   - Pattern = 0 위치: X 방향 600 nm 전체가 n = 1.5 (background)
+    #   - Pattern = 1 위치: X 방향 600 nm 전체가 n = 1.54 (Block)
     pillar_count = 0
     for j in range(nz):  # z direction (vertical in pattern)
         z_pos = z_coords[j]
         
         # Check pattern at this z position
         for i in range(ny):  # y direction (horizontal in pattern)
-            if mask[j, i] > 0.5:  # Pillar pixel
+            if mask[j, i] > 0.5:  # Pattern = 1 (pillar pixel)
                 y_pos = y_coords[i]
                 
-                # Create block
+                # Create block with pillar_material (n = n_base + delta_n)
+                # X 방향 전체 thickness_um (600 nm)가 n = 1.54
                 block = mp.Block(
-                    size=mp.Vector3(thickness_um, pixel_size_y, pixel_size_z),  # (x, y, z)
+                    size=mp.Vector3(thickness_um, pixel_size_y, pixel_size_z),  # X: 600 nm 전체
                     center=mp.Vector3(pillar_x_center, y_pos, z_pos),  # (x, y, z)
-                    material=pillar_material
+                    material=pillar_material  # n = 1.54
                 )
                 geometry.append(block)
                 pillar_count += 1
+            # else: Pattern = 0 (background), X 방향 600 nm 전체가 n = 1.5 (default_material)
     
     print(f"Generated Block count: {len(geometry):,}")
     print(f"  • Pillar pixels: {pillar_count:,}")
     print(f"  • Block size: {thickness_um:.0f} × {pixel_size_y:.2f} × {pixel_size_z:.2f} nm")
+    
+    # Debug: Check first few blocks
+    if len(geometry) > 0:
+        print(f"\n  🔍 Debug - First 3 blocks:")
+        for idx, block in enumerate(geometry[:3]):
+            print(f"    Block {idx+1}: center=({block.center.x:.1f}, {block.center.y:.1f}, {block.center.z:.1f}) nm, "
+                  f"size=({block.size.x:.1f}, {block.size.y:.2f}, {block.size.z:.2f}) nm")
+        print(f"    ...")
+        print(f"    ⚠️ 중요: 모든 Block의 X center = {pillar_x_center:.1f}, X size = {thickness_um:.0f} nm")
+        print(f"    ⚠️ 즉, 모든 Block은 X 방향 [{pillar_x_center-thickness_um/2:.1f}, {pillar_x_center+thickness_um/2:.1f}] nm 범위")
     
     return geometry, background_material
 
@@ -306,34 +340,41 @@ def visualize_actual_meep_pattern(sim, size_x_nm, size_y_nm, size_z_nm,
     
     # YZ plane (pillar pattern at x=pillar_x_center)
     yz_plane_center = mp.Vector3(pillar_x_center, 0, 0)
-    yz_plane_size = mp.Vector3(0, size_y_nm * 0.9, size_z_nm * 0.9)
+    yz_plane_size = mp.Vector3(0, size_y_nm, size_z_nm)
     
     eps_data_yz = sim.get_array(center=yz_plane_center, size=yz_plane_size, 
                                 component=mp.Dielectric)
     n_data_yz = np.sqrt(np.real(eps_data_yz))
+    print(f"    YZ plane: shape={n_data_yz.shape}, center=({pillar_x_center:.1f}, 0, 0), size=(0, {size_y_nm:.0f}, {size_z_nm:.0f})")
     
-    # XZ plane (side view at y=0)
-    xz_plane_center = mp.Vector3(0, 0, 0)
-    xz_plane_size = mp.Vector3(size_x_nm * 0.9, 0, size_z_nm * 0.9)
+    # XZ plane (side view at y=0) - focus on pillar region only
+    # Pillar region: pillar_x_center ± pillar_thickness/2
+    xz_view_size_x = pillar_thickness_nm * 2.0  # Show 2x pillar thickness for context
+    xz_plane_center = mp.Vector3(pillar_x_center, 0, 0)
+    xz_plane_size = mp.Vector3(xz_view_size_x, 0, size_z_nm)
     
     eps_data_xz = sim.get_array(center=xz_plane_center, size=xz_plane_size, 
                                 component=mp.Dielectric)
     n_data_xz = np.sqrt(np.real(eps_data_xz))
+    print(f"    XZ plane: shape={n_data_xz.shape}, center=({pillar_x_center:.1f}, 0, 0), size=({xz_view_size_x:.0f}, 0, {size_z_nm:.0f})")
+    print(f"      ⚠️ 예상: X 방향 각 위치에서 모든 Z가 같은 굴절률 (X 방향 600 nm 전체가 uniform)")
     
-    # XY plane (top view at z=0)
-    xy_plane_center = mp.Vector3(0, 0, 0)
-    xy_plane_size = mp.Vector3(size_x_nm * 0.9, size_y_nm * 0.9, 0)
+    # XY plane (top view at z=0) - focus on pillar region only
+    xy_plane_center = mp.Vector3(pillar_x_center, 0, 0)
+    xy_plane_size = mp.Vector3(xz_view_size_x, size_y_nm, 0)
     
     eps_data_xy = sim.get_array(center=xy_plane_center, size=xy_plane_size, 
                                 component=mp.Dielectric)
     n_data_xy = np.sqrt(np.real(eps_data_xy))
+    print(f"    XY plane: shape={n_data_xy.shape}, center=({pillar_x_center:.1f}, 0, 0), size=({xz_view_size_x:.0f}, {size_y_nm:.0f}, 0)")
+    print(f"      ⚠️ 예상: X 방향 각 위치에서 모든 Y가 같은 굴절률 (X 방향 600 nm 전체가 uniform)")
     
     # Visualization
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     
     # YZ plane (actual pillar pattern)
     ax1 = axes[0, 0]
-    extent_yz = [-size_z_nm*0.45, size_z_nm*0.45, -size_y_nm*0.45, size_y_nm*0.45]
+    extent_yz = [-size_z_nm*0.5, size_z_nm*0.5, -size_y_nm*0.5, size_y_nm*0.5]
     im1 = ax1.imshow(n_data_yz, extent=extent_yz, cmap='viridis', origin='lower')
     ax1.set_title(f'YZ Plane: Actual MEEP Refractive Index\\n(x = {pillar_x_center} nm, Random Pillar Pattern)', 
                   fontsize=12, fontweight='bold')
@@ -348,38 +389,40 @@ def visualize_actual_meep_pattern(sim, size_x_nm, size_y_nm, size_z_nm,
              transform=ax1.transAxes, fontsize=10, 
              bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
     
-    # XZ plane (side view)
+    # XZ plane (side view) - focused on pillar region
     ax2 = axes[0, 1]
-    extent_xz = [-size_x_nm*0.45, size_x_nm*0.45, -size_z_nm*0.45, size_z_nm*0.45]
+    extent_xz = [-xz_view_size_x/2, xz_view_size_x/2, -size_z_nm*0.5, size_z_nm*0.5]
     im2 = ax2.imshow(n_data_xz.T, extent=extent_xz, cmap='viridis', origin='lower')
-    ax2.set_title(f'XZ Plane: Side View (y = 0 nm)', fontsize=12, fontweight='bold')
+    ax2.set_title(f'XZ Plane: Side View (y = 0 nm)\n[Focused on Pillar Region]', 
+                  fontsize=12, fontweight='bold')
     ax2.set_xlabel('x (nm)')
     ax2.set_ylabel('z (nm)')
     plt.colorbar(im2, ax=ax2, label='Refractive Index n')
     ax2.grid(True, alpha=0.3)
     
     # Mark pillar region
-    pillar_x_min = pillar_x_center - pillar_thickness_nm/2
-    pillar_x_max = pillar_x_center + pillar_thickness_nm/2
+    pillar_x_min = -pillar_thickness_nm/2
+    pillar_x_max = +pillar_thickness_nm/2
     ax2.axvline(x=pillar_x_min, color='red', linestyle='--', alpha=0.8, linewidth=2)
     ax2.axvline(x=pillar_x_max, color='red', linestyle='--', alpha=0.8, linewidth=2)
-    ax2.text(pillar_x_center, size_z_nm*0.35, 'Pillar\\nRegion', ha='center', va='center',
+    ax2.text(0, size_z_nm*0.4, f'Pillar\\n{pillar_thickness_nm:.0f} nm', ha='center', va='center',
              color='red', fontweight='bold', fontsize=10,
              bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
     
-    # XY plane (top view)
+    # XY plane (top view) - focused on pillar region
     ax3 = axes[1, 0]
-    extent_xy = [-size_x_nm*0.45, size_x_nm*0.45, -size_y_nm*0.45, size_y_nm*0.45]
+    extent_xy = [-xz_view_size_x/2, xz_view_size_x/2, -size_y_nm*0.5, size_y_nm*0.5]
     im3 = ax3.imshow(n_data_xy.T, extent=extent_xy, cmap='viridis', origin='lower')
-    ax3.set_title(f'XY Plane: Top View (z = 0 nm)', fontsize=12, fontweight='bold')
+    ax3.set_title(f'XY Plane: Top View (z = 0 nm)\n[Focused on Pillar Region]', 
+                  fontsize=12, fontweight='bold')
     ax3.set_xlabel('x (nm)')
     ax3.set_ylabel('y (nm)')
     plt.colorbar(im3, ax=ax3, label='Refractive Index n')
     ax3.grid(True, alpha=0.3)
     
     # Mark pillar region
-    ax3.axvline(x=pillar_x_min, color='red', linestyle='--', alpha=0.8, linewidth=2)
-    ax3.axvline(x=pillar_x_max, color='red', linestyle='--', alpha=0.8, linewidth=2)
+    ax3.axvline(x=-pillar_thickness_nm/2, color='red', linestyle='--', alpha=0.8, linewidth=2)
+    ax3.axvline(x=+pillar_thickness_nm/2, color='red', linestyle='--', alpha=0.8, linewidth=2)
     
     # YZ plane histogram
     ax4 = axes[1, 1]
@@ -387,7 +430,8 @@ def visualize_actual_meep_pattern(sim, size_x_nm, size_y_nm, size_z_nm,
     ax4.hist(n_flat, bins=50, alpha=0.7, color='skyblue', edgecolor='black')
     ax4.set_xlabel('Refractive Index n')
     ax4.set_ylabel('Pixel Count')
-    ax4.set_title('YZ Plane Refractive Index Distribution', fontsize=12, fontweight='bold')
+    ax4.set_title('YZ Plane Refractive Index Distribution\n(Intermediate values from MEEP subpixel averaging)', 
+                  fontsize=11, fontweight='bold')
     ax4.grid(True, alpha=0.3)
     
     # Statistics
@@ -521,7 +565,7 @@ def visualize_phase_map(phase_analysis, mask_info, wavelength_nm=535, pillar_hei
     
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
     
-    extent = [-size_z_nm*0.4, size_z_nm*0.4, -size_y_nm*0.4, size_y_nm*0.4]
+    extent = [-size_z_nm*0.5, size_z_nm*0.5, -size_y_nm*0.5, size_y_nm*0.5]
     
     # 1. Phase map
     ax1 = axes[0, 0]
@@ -579,7 +623,7 @@ def visualize_phase_map(phase_analysis, mask_info, wavelength_nm=535, pillar_hei
     ax6 = axes[1, 2]
     center_idx = phase_map.shape[0] // 2
     phase_profile = phase_map[center_idx, :]
-    z_coords = np.linspace(-size_z_nm*0.4, size_z_nm*0.4, len(phase_profile))
+    z_coords = np.linspace(-size_z_nm*0.5, size_z_nm*0.5, len(phase_profile))
     
     ax6.plot(z_coords, phase_profile, 'b-', linewidth=2, label='Phase profile (y=0)')
     ax6.set_xlabel('z (nm)')
@@ -616,7 +660,10 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
                                  pillar_x_center=PILLAR_X_CENTER,
                                  incident_deg=INCIDENT_DEG, wavelength_nm=WAVELENGTH_NM,
                                  n_base=N_BASE, delta_n=DELTA_N,
-                                 cell_size_scale=CELL_SIZE_SCALE):
+                                 cell_size_scale=CELL_SIZE_SCALE,
+                                 auto_terminate=AUTO_TERMINATE,
+                                 decay_threshold=DECAY_THRESHOLD,
+                                 source_width_factor=SOURCE_WIDTH_FACTOR):
     """Run random pillar + plane wave simulation and calculate phase map
     
     HOE 시뮬레이션 코드 구조 기반, 모든 단위 nm로 통일:
@@ -663,15 +710,16 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     resampled_mask = resample_mask_to_cell_size(mask, target_ny, target_nz)
     
     print(f"\n📋 Simulation parameters (all in nm):")
-    print(f"  • Cell size: {size_x_nm:.0f} × {size_y_nm:.0f} × {size_z_nm:.0f} nm")
-    print(f"  • Pillar size: {pillar_height_nm:.0f} × {size_y_nm:.0f} × {size_z_nm:.0f} nm")
+    print(f"  • Cell size: {size_x_nm:.0f} × {size_y_nm:.0f} × {size_z_nm:.0f} nm (X × Y × Z)")
+    print(f"  • Pillar thickness: {pillar_height_nm:.0f} nm")
     print(f"  • Resolution: {resolution_nm} pixels/nm")
     print(f"  • Wavelength: {wavelength_nm} nm")
     print(f"  • Incident angle: {incident_deg}° (normal incidence)")
-    print(f"  • Base index: {n_base}")
-    print(f"  • Pillar index: {n_base + delta_n}")
-    print(f"  • Δn: {delta_n} (HOE standard - realistic)")
-    print(f"  • Pattern: Random pillar (non-periodic)")
+    print(f"\n  Refractive index:")
+    print(f"  • Pattern 0 (background): n = {n_base:.2f}")
+    print(f"  • Pattern 1 (pillar):     n = {n_base + delta_n:.2f}")
+    print(f"  • Δn: {delta_n:.3f} (HOE standard)")
+    print(f"  • Pattern type: Random pillar (non-periodic)")
     
     # Physical parameters (MEEP uses normalized units, but we convert)
     incident_angle = math.radians(incident_deg)
@@ -712,9 +760,13 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     src_center = mp.Vector3(x_src, 0, 0)
     src_size = mp.Vector3(0, size_y_nm, size_z_nm)
     
+    # Use GaussianSource for better auto-termination
+    # Width: several wavelengths for smooth turn-on
+    src_width = wavelength_nm * source_width_factor
+    
     sources = [
         mp.Source(
-            src=mp.ContinuousSource(frequency=frequency),
+            src=mp.GaussianSource(frequency=frequency, width=src_width),
             component=mp.Ez,
             center=src_center,
             size=src_size,
@@ -722,6 +774,8 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
         )
     ]
     
+    print(f"  • Source type: GaussianSource (for auto-termination)")
+    print(f"  • Source width: {src_width:.0f} nm/c (~{src_width/wavelength_nm:.1f} periods)")
     print(f"  • Source position: x = {x_src:.0f} nm")
     print(f"  • Source size: {src_size.y:.0f} × {src_size.z:.0f} nm")
     
@@ -748,19 +802,19 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     for x_pos, name in zip(front_monitor_positions, front_monitor_names):
         monitor_vol = mp.Volume(
             center=mp.Vector3(x_pos, 0, 0),
-            size=mp.Vector3(0, size_y_nm * 0.8, size_z_nm * 0.8)
+            size=mp.Vector3(0, size_y_nm, size_z_nm)  # 100% of cell size
         )
         monitor_volumes.append((monitor_vol, name, x_pos, "front"))
-        print(f"    • {name}: x = {x_pos:.0f} nm")
+        print(f"    • {name}: x = {x_pos:.0f} nm (100% of cell size)")
     
     print(f"  📤 Back monitors:")
     for x_pos, name in zip(back_monitor_positions, back_monitor_names):
         monitor_vol = mp.Volume(
             center=mp.Vector3(x_pos, 0, 0),
-            size=mp.Vector3(0, size_y_nm * 0.8, size_z_nm * 0.8)
+            size=mp.Vector3(0, size_y_nm, size_z_nm)  # 100% of cell size
         )
         monitor_volumes.append((monitor_vol, name, x_pos, "back"))
-        print(f"    • {name}: x = {x_pos:.0f} nm")
+        print(f"    • {name}: x = {x_pos:.0f} nm (100% of cell size)")
     
     # Create simulation (nm units)
     sim = mp.Simulation(
@@ -775,26 +829,58 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     )
     
     # Run simulation
-    print(f"\n🚀 Running simulation...")
-    print(f"  • Geometry count: {len(geometry)}")
-    print(f"  • Monitor count: {len(monitor_volumes)}")
+    if auto_terminate:
+        print(f"\n🚀 Running simulation with auto-termination...")
+        print(f"  • Geometry count: {len(geometry)}")
+        print(f"  • Monitor count: {len(monitor_volumes)}")
+        
+        # Auto-termination settings
+        # Monitor position: use the farthest back monitor for field decay check
+        farthest_back_monitor_x = max(back_monitor_positions)
+        
+        print(f"\n📊 Auto-termination settings:")
+        print(f"  • Monitor position: x = {farthest_back_monitor_x:.0f} nm (farthest back monitor)")
+        print(f"  • Decay threshold: {decay_threshold:.0e} (relative)")
+        print(f"  • Component monitored: Ez")
+        print(f"  • Source width: {src_width:.0f} nm/c (~{source_width_factor:.1f} periods)")
+        print(f"  • Auto-stop when steady state reached")
+        
+        # Run with auto-termination
+        # Stop when Ez field at the back monitor decays to threshold
+        sim.run(
+            mp.at_beginning(mp.output_epsilon),
+            until_after_sources=mp.stop_when_fields_decayed(
+                dt=wavelength_nm / 20.0,  # Check every ~1/20 wavelength time
+                c=mp.Ez,  # Monitor Ez component
+                pt=mp.Vector3(farthest_back_monitor_x, 0, 0),  # At back monitor
+                decay_by=decay_threshold  # Stop when field decays to this level
+            )
+        )
+        
+        final_time = sim.meep_time()
+        print(f"\n✅ Simulation complete!")
+        print(f"  • Final time: {final_time:.0f} nm/c")
+        print(f"  • Steady state reached (field decayed to {decay_threshold:.0e})")
     
-    # Calculate required simulation time (nm/c units)
-    # Distance from source to farthest monitor
-    max_distance = abs(x_src) + max(abs(pos) for pos in all_monitor_positions) + pillar_height_nm/2
-    # Time for light to travel through medium (with index n_base)
-    travel_time = max_distance * n_base
-    # Add extra time for stabilization (a few wavelengths)
-    extra_time = wavelength_nm * 5
-    total_time = travel_time + extra_time
-    
-    print(f"  • Max distance: {max_distance:.0f} nm")
-    print(f"  • Travel time: {travel_time:.0f} nm/c")
-    print(f"  • Total simulation time: {total_time:.0f} nm/c")
-    
-    sim.run(until=total_time)
-    
-    print(f"✅ Simulation complete!")
+    else:
+        # Manual termination with fixed time
+        print(f"\n🚀 Running simulation with fixed time...")
+        print(f"  • Geometry count: {len(geometry)}")
+        print(f"  • Monitor count: {len(monitor_volumes)}")
+        
+        # Calculate required simulation time (nm/c units)
+        max_distance = abs(x_src) + max(abs(pos) for pos in all_monitor_positions) + pillar_height_nm/2
+        travel_time = max_distance * n_base
+        extra_time = wavelength_nm * 5
+        total_time = travel_time + extra_time
+        
+        print(f"  • Max distance: {max_distance:.0f} nm")
+        print(f"  • Travel time: {travel_time:.0f} nm/c")
+        print(f"  • Total simulation time: {total_time:.0f} nm/c")
+        
+        sim.run(until=total_time)
+        
+        print(f"\n✅ Simulation complete!")
     
     # Visualize refractive index
     visualize_actual_meep_pattern(sim, size_x_nm, size_y_nm, size_z_nm, 
@@ -831,7 +917,7 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
             'intensity': intensity,
             'x_pos': x_pos,
             'position_type': position_type,
-            'extent': [-size_z_nm*0.4, size_z_nm*0.4, -size_y_nm*0.4, size_y_nm*0.4]
+            'extent': [-size_z_nm*0.5, size_z_nm*0.5, -size_y_nm*0.5, size_y_nm*0.5]
         }
         
         monitor_data[name] = monitor_info
@@ -972,5 +1058,401 @@ def main():
     print(f"Results stored in 'results' variable")
 
 
+def generate_single_training_sample(sample_idx, output_dir, 
+                                   pillar_params, simulation_params,
+                                   visualize=False):
+    """Generate one training sample (input mask + output phase map)
+    
+    Parameters:
+    -----------
+    sample_idx : int
+        Sample index for naming
+    output_dir : Path
+        Output directory path
+    pillar_params : dict
+        Random pillar generation parameters
+    simulation_params : dict
+        MEEP simulation parameters
+    visualize : bool
+        Whether to save visualization images
+        
+    Returns:
+    --------
+    success : bool
+        Whether sample generation succeeded
+    sample_info : dict
+        Sample information
+    """
+    from pathlib import Path
+    from random_pillar_generator import RandomPillarGenerator
+    
+    print(f"\n{'='*80}")
+    print(f"📦 Generating Training Sample {sample_idx}")
+    print(f"{'='*80}")
+    
+    try:
+        # 1. Generate random pillar pattern
+        print(f"\n1️⃣ Generating random pillar pattern...")
+        generator = RandomPillarGenerator(
+            pillar_radius=pillar_params['pillar_radius'],
+            min_edge_distance=pillar_params['min_edge_distance'],
+            domain_size=pillar_params['domain_size'],
+            initial_density=pillar_params['initial_density'],
+            max_attempts=pillar_params.get('max_attempts', 10000)
+        )
+        
+        pillars = generator.generate_pillars()
+        
+        # Generate binary mask
+        width, height = pillar_params['domain_size']
+        mask = np.zeros((height, width), dtype=np.uint8)
+        
+        for cx, cy in pillars:
+            cx_px = int(cx)
+            cy_px = int(cy)
+            radius_px = int(pillar_params['pillar_radius'])
+            
+            y_indices, x_indices = np.ogrid[:height, :width]
+            distances = np.sqrt((x_indices - cx_px)**2 + ((height - 1 - y_indices) - cy_px)**2)
+            mask[distances <= radius_px] = 1
+        
+        fill_ratio = np.sum(mask) / mask.size * 100
+        print(f"  ✓ Mask generated: {mask.shape}, fill ratio: {fill_ratio:.1f}%")
+        
+        # 2. Run MEEP simulation
+        print(f"\n2️⃣ Running MEEP simulation...")
+        
+        # Save temporary mask file
+        temp_mask_file = f"temp_mask_{sample_idx}.npy"
+        np.save(temp_mask_file, mask)
+        
+        # Run simulation
+        results = run_random_pillar_simulation(
+            mask_file=temp_mask_file,
+            resolution_nm=simulation_params['resolution_nm'],
+            pml_nm=simulation_params['pml_nm'],
+            size_x_nm=simulation_params['size_x_nm'],
+            pillar_height_nm=simulation_params['pillar_height_nm'],
+            pillar_x_center=simulation_params['pillar_x_center'],
+            incident_deg=simulation_params['incident_deg'],
+            wavelength_nm=simulation_params['wavelength_nm'],
+            n_base=simulation_params['n_base'],
+            delta_n=simulation_params['delta_n'],
+            cell_size_scale=simulation_params.get('cell_size_scale', 1.0),
+            auto_terminate=simulation_params.get('auto_terminate', True),
+            decay_threshold=simulation_params.get('decay_threshold', 1e-4),
+            source_width_factor=simulation_params.get('source_width_factor', 10)
+        )
+        
+        # Clean up temp file
+        if os.path.exists(temp_mask_file):
+            os.remove(temp_mask_file)
+        
+        # 3. Extract phase map
+        phase_analysis = results.get('phase_analysis', {})
+        if not phase_analysis:
+            print(f"  ❌ Failed to get phase map")
+            return False, {}
+        
+        phase_map = phase_analysis['phase_map']
+        print(f"  ✓ Phase map extracted: {phase_map.shape}")
+        
+        # 4. Save input and output
+        print(f"\n3️⃣ Saving data...")
+        
+        # Create directories
+        input_dir = output_dir / 'inputs'
+        output_phase_dir = output_dir / 'outputs'
+        input_dir.mkdir(parents=True, exist_ok=True)
+        output_phase_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save input mask as PNG (0-255 grayscale)
+        sample_name = f"sample_{sample_idx:04d}"
+        input_path = input_dir / f"{sample_name}.png"
+        mask_img = (mask * 255).astype(np.uint8)
+        
+        import cv2
+        cv2.imwrite(str(input_path), mask_img)
+        print(f"  ✓ Input mask saved: {input_path}")
+        
+        # Save output phase map as .npy (preserve precision)
+        output_path = output_phase_dir / f"{sample_name}.npy"
+        np.save(output_path, phase_map.astype(np.float32))
+        print(f"  ✓ Output phase map saved: {output_path}")
+        
+        # 5. Optional: Save visualization
+        if visualize:
+            vis_dir = output_dir / 'visualizations'
+            vis_dir.mkdir(exist_ok=True)
+            
+            fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+            
+            # Input mask
+            axes[0].imshow(mask, cmap='gray')
+            axes[0].set_title(f'Input: Random Pillar Mask\n{mask.shape}, Fill: {fill_ratio:.1f}%')
+            axes[0].axis('off')
+            
+            # Output phase map
+            im1 = axes[1].imshow(phase_map, cmap='hsv', vmin=-np.pi, vmax=np.pi)
+            axes[1].set_title(f'Output: Phase Map\n{phase_map.shape}')
+            axes[1].axis('off')
+            plt.colorbar(im1, ax=axes[1], label='Phase (rad)')
+            
+            # Phase histogram
+            axes[2].hist(phase_map.flatten(), bins=50, alpha=0.7, edgecolor='black')
+            axes[2].set_xlabel('Phase (rad)')
+            axes[2].set_ylabel('Count')
+            axes[2].set_title('Phase Distribution')
+            axes[2].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            vis_path = vis_dir / f"{sample_name}_vis.png"
+            plt.savefig(vis_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            
+            print(f"  ✓ Visualization saved: {vis_path}")
+        
+        # Sample info
+        sample_info = {
+            'sample_idx': sample_idx,
+            'input_shape': mask.shape,
+            'output_shape': phase_map.shape,
+            'fill_ratio': fill_ratio,
+            'num_pillars': len(pillars),
+            'pillar_params': pillar_params,
+            'simulation_params': simulation_params,
+            'phase_mean': float(np.mean(phase_map)),
+            'phase_std': float(np.std(phase_map)),
+            'phase_min': float(np.min(phase_map)),
+            'phase_max': float(np.max(phase_map))
+        }
+        
+        print(f"\n✅ Sample {sample_idx} generated successfully!")
+        return True, sample_info
+        
+    except Exception as e:
+        print(f"\n❌ Error generating sample {sample_idx}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False, {}
+
+
+def generate_training_dataset(num_samples=100, 
+                              output_dir='data/forward_phase',
+                              pillar_params=None,
+                              simulation_params=None,
+                              visualize_samples=True,
+                              start_idx=0):
+    """Generate training dataset for forward phase prediction
+    
+    Parameters:
+    -----------
+    num_samples : int
+        Number of samples to generate
+    output_dir : str or Path
+        Output directory path
+    pillar_params : dict
+        Random pillar generation parameters
+        Default: {
+            'pillar_radius': varies randomly 8-12 nm,
+            'min_edge_distance': 5.0 nm,
+            'domain_size': (4096, 4096) nm,
+            'initial_density': 100.0 pillars/μm²
+        }
+    simulation_params : dict
+        MEEP simulation parameters (uses module defaults if None)
+    visualize_samples : bool
+        Whether to save visualization for each sample
+    start_idx : int
+        Starting sample index (useful for continuing generation)
+        
+    Returns:
+    --------
+    dataset_info : dict
+        Dataset generation summary
+    """
+    from pathlib import Path
+    import json
+    
+    print(f"\n{'='*80}")
+    print(f"🚀 Training Dataset Generation")
+    print(f"{'='*80}")
+    print(f"Number of samples: {num_samples}")
+    print(f"Output directory: {output_dir}")
+    print(f"Starting index: {start_idx}")
+    
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Default pillar parameters (will vary per sample)
+    if pillar_params is None:
+        pillar_params = {
+            'pillar_radius': 10.0,  # Will vary per sample
+            'min_edge_distance': 5.0,
+            'domain_size': (4096, 4096),
+            'initial_density': 100.0,
+            'max_attempts': 10000
+        }
+    
+    # Default simulation parameters
+    if simulation_params is None:
+        simulation_params = {
+            'resolution_nm': RESOLUTION_NM,
+            'pml_nm': PML_NM,
+            'size_x_nm': SIZE_X_NM,
+            'pillar_height_nm': PILLAR_HEIGHT_NM,
+            'pillar_x_center': PILLAR_X_CENTER,
+            'incident_deg': INCIDENT_DEG,
+            'wavelength_nm': WAVELENGTH_NM,
+            'n_base': N_BASE,
+            'delta_n': DELTA_N,
+            'cell_size_scale': CELL_SIZE_SCALE,
+            'auto_terminate': AUTO_TERMINATE,
+            'decay_threshold': DECAY_THRESHOLD,
+            'source_width_factor': SOURCE_WIDTH_FACTOR
+        }
+    
+    print(f"\n📋 Pillar parameters (base):")
+    print(f"  • Domain size: {pillar_params['domain_size']} nm")
+    print(f"  • Pillar radius: {pillar_params['pillar_radius']} nm (will vary per sample)")
+    print(f"  • Min edge distance: {pillar_params['min_edge_distance']} nm")
+    print(f"  • Initial density: {pillar_params['initial_density']} pillars/μm²")
+    
+    print(f"\n📋 Simulation parameters:")
+    for key, value in simulation_params.items():
+        print(f"  • {key}: {value}")
+    
+    # Generate samples
+    print(f"\n{'='*80}")
+    print(f"Starting sample generation...")
+    print(f"{'='*80}")
+    
+    successful_samples = []
+    failed_samples = []
+    all_sample_info = []
+    
+    for i in range(num_samples):
+        sample_idx = start_idx + i
+        
+        # Vary pillar radius for diversity (8-12 nm)
+        current_pillar_params = pillar_params.copy()
+        current_pillar_params['pillar_radius'] = np.random.uniform(8.0, 12.0)
+        
+        # Vary density slightly (80-120 pillars/μm²)
+        current_pillar_params['initial_density'] = np.random.uniform(80.0, 120.0)
+        
+        # Generate sample
+        success, sample_info = generate_single_training_sample(
+            sample_idx=sample_idx,
+            output_dir=output_dir,
+            pillar_params=current_pillar_params,
+            simulation_params=simulation_params,
+            visualize=visualize_samples
+        )
+        
+        if success:
+            successful_samples.append(sample_idx)
+            all_sample_info.append(sample_info)
+        else:
+            failed_samples.append(sample_idx)
+        
+        # Progress
+        print(f"\n{'─'*80}")
+        print(f"Progress: {i+1}/{num_samples} samples processed")
+        print(f"  • Successful: {len(successful_samples)}")
+        print(f"  • Failed: {len(failed_samples)}")
+        print(f"{'─'*80}")
+    
+    # Save dataset metadata
+    print(f"\n{'='*80}")
+    print(f"💾 Saving dataset metadata...")
+    
+    metadata = {
+        'num_samples': num_samples,
+        'successful_samples': len(successful_samples),
+        'failed_samples': len(failed_samples),
+        'start_idx': start_idx,
+        'pillar_params_base': pillar_params,
+        'simulation_params': simulation_params,
+        'sample_info': all_sample_info,
+        'generation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    metadata_path = output_dir / 'dataset_metadata.json'
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    
+    print(f"  ✓ Metadata saved: {metadata_path}")
+    
+    # Summary
+    print(f"\n{'='*80}")
+    print(f"🎉 Dataset Generation Complete!")
+    print(f"{'='*80}")
+    print(f"\n📊 Summary:")
+    print(f"  • Total samples requested: {num_samples}")
+    print(f"  • Successful: {len(successful_samples)} ({len(successful_samples)/num_samples*100:.1f}%)")
+    print(f"  • Failed: {len(failed_samples)} ({len(failed_samples)/num_samples*100:.1f}%)")
+    
+    print(f"\n📁 Output structure:")
+    print(f"  {output_dir}/")
+    print(f"    ├── inputs/")
+    print(f"    │   ├── sample_0000.png")
+    print(f"    │   └── ...")
+    print(f"    ├── outputs/")
+    print(f"    │   ├── sample_0000.npy")
+    print(f"    │   └── ...")
+    if visualize_samples:
+        print(f"    ├── visualizations/")
+        print(f"    │   ├── sample_0000_vis.png")
+        print(f"    │   └── ...")
+    print(f"    └── dataset_metadata.json")
+    
+    print(f"\n💡 Usage with PyTorch:")
+    print(f"   from pytorch_codes.datasets.hoe_dataset import InverseDesignDataset")
+    print(f"   dataset = InverseDesignDataset('{output_dir}', output_extension='npy')")
+    print(f"   sample = dataset[0]")
+    print(f"   input_mask = sample['image']  # Shape: (1, H, W)")
+    print(f"   phase_map = sample['target']  # Shape: (1, H, W)")
+    
+    if failed_samples:
+        print(f"\n⚠️  Failed sample indices: {failed_samples[:10]}{'...' if len(failed_samples) > 10 else ''}")
+    
+    return metadata
+
+
 if __name__ == "__main__":
-    main()
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Random Pillar Phase Map Simulation')
+    parser.add_argument('--mode', type=str, default='single', 
+                       choices=['single', 'dataset'],
+                       help='Run mode: single simulation or generate dataset')
+    parser.add_argument('--num_samples', type=int, default=100,
+                       help='Number of samples to generate (dataset mode)')
+    parser.add_argument('--output_dir', type=str, default='data/forward_phase',
+                       help='Output directory for dataset')
+    parser.add_argument('--visualize', action='store_true',
+                       help='Save visualizations for each sample')
+    parser.add_argument('--start_idx', type=int, default=0,
+                       help='Starting sample index')
+    
+    args = parser.parse_args()
+    
+    if args.mode == 'single':
+        # Single simulation mode (original behavior)
+        main()
+    elif args.mode == 'dataset':
+        # Dataset generation mode
+        print("\n" + "="*80)
+        print("🔬 Dataset Generation Mode")
+        print("="*80)
+        
+        metadata = generate_training_dataset(
+            num_samples=args.num_samples,
+            output_dir=args.output_dir,
+            visualize_samples=args.visualize,
+            start_idx=args.start_idx
+        )
+        
+        print(f"\n✅ Dataset generation complete!")
+        print(f"   Dataset ready for PyTorch training!")

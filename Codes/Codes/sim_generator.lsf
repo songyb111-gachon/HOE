@@ -1,0 +1,52 @@
+clear;
+filenum=10;
+run_mode=0;
+k=4000; # pillar no
+for(t=1:filenum){
+ 
+initial_trial=100;  
+rest=k-initial_trial;  
+sim_size=10000e-9; #20 times 500 / 20 times bigger
+count=initial_trial;
+
+repeat=1;
+for(0; repeat==1; 0) {
+    posx = (randmatrix(initial_trial,1)-0.5)*sim_size;
+    posy = (randmatrix(initial_trial,1)-0.5)*sim_size;
+    repeat=0;
+    for (i=2:initial_trial){
+       for (j=1:i-1){
+          if ((posx(i)-posx(j))^2+(posy(i)-posy(j))^2 < 8100e-18) {repeat=1;}         
+          }    
+   }
+}
+
+for(0; length(posx)<k;0){
+    new_x=(rand-0.5)*sim_size;
+    new_y=(rand-0.5)*sim_size;
+    check=0;
+    for (i=1:length(posx)){
+        if ((posx(i)-new_x)^2+(posy(i)-new_y)^2 < 8100e-18) {check=1;}
+        }
+    if (check==0){posx=[posx ;new_x]; 
+        posy=[posy ;new_y]; count=count+1; }
+    ?count;
+}
+
+
+bulentdenemefsp;
+
+######################## .fsp file save
+if(run_mode==0) {
+    save("test_file_"+num2str(k)+"pillar_run_"+num2str(t+5));
+}
+
+######################## direct run on local machine
+if(run_mode==1) {
+    save("test_file_"+num2str(k)+"_pillar_run_"+num2str(t));
+    run;
+    E=getresult("nearfield","E");
+    index_map=getresult("index","index");
+    matlabsave("test_file_"+num2str(k)+"_pillar_run_"+num2str(t));
+}
+}
