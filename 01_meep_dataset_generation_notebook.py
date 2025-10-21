@@ -43,29 +43,37 @@ OUTPUT_DIR = 'data/forward_phase'  # 출력 디렉토리
 SAVE_VISUALIZATIONS = True    # 시각화 저장 여부
 
 # ==================== Random Pillar 파라미터 ====================
-# random_pillar_generator.py와 동일한 파라미터 사용
+# ⚠️ 주의: 해상도 1.0 유지 시 도메인 크기를 작게 시작! ⚠️
+# 테스트: 512×512 → 성공 후 → 1024×1024 → 최종 2048×2048 or 4096×4096
 PILLAR_PARAMS = {
-    'domain_size': (4096, 4096),        # 시뮬레이션 영역 (nm)
+    'domain_size': (1024, 1024),        # 시뮬레이션 영역 (nm) - 작게 시작!
+                                        # 512: 테스트용 (빠름)
+                                        # 1024: 중간 (권장 시작점)
+                                        # 2048: 큼 (오래 걸림)
+                                        # 4096: 매우 큼 (수 시간)
     'pillar_radius': 45.0,              # 기둥 반지름 (nm)
     'min_edge_distance': 5.0,           # 최소 edge-to-edge 거리 (nm)
-    'initial_density': 40.0,            # 초기 밀도 (pillars/μm²) → 약 670개 기둥
+    'initial_density': 40.0,            # 초기 밀도 (pillars/μm²)
     'max_attempts': 10000
 }
 
 # ==================== MEEP 시뮬레이션 파라미터 ====================
+# 논문 방식: 평면파 광원을 pillar 근처에 배치하여 X축 최소화 ⚡⚡⚡
 SIMULATION_PARAMS = {
-    'resolution_nm': 1.0,               # 해상도 (pixels/nm) - 1:1 매칭
-    'pml_nm': 1500.0,                   # PML 두께 (nm)
-    'size_x_nm': 20000.0,               # x 방향 크기 (nm)
-    'pillar_height_nm': 600.0,          # 기둥 높이 (nm)
+    'resolution_nm': 1.0,               # 해상도 (pixels/nm) - 1:1 매칭 유지
+    'pml_nm': 500.0,                    # PML 두께 (nm) - 파장(535nm)과 비슷하면 충분!
+    'size_x_nm': 2000.0,                # x 방향 크기 (nm) - 최소화! ⚡⚡⚡
+                                        # 2000nm = 2μm
+                                        # Pillar(600) + 여유(400×2) + PML(500×2) = 1900nm
+    'pillar_height_nm': 600.0,          # 기둥 높이 (nm) - pillar 두께
     'pillar_x_center': 0.0,             # 기둥 x 중심 (nm)
-    'incident_deg': 0.0,                # 입사각 (도)
-    'wavelength_nm': 535.0,             # 파장 (nm)
+    'incident_deg': 0.0,                # 입사각 (도) - 수직 입사
+    'wavelength_nm': 535.0,             # 파장 (nm) - 535nm 녹색
     'n_base': 1.5,                      # 기본 굴절률
     'delta_n': 0.04,                    # 굴절률 변조
     'cell_size_scale': 1.0,
     'auto_terminate': True,
-    'decay_threshold': 1e-4,
+    'decay_threshold': 1e-6,            # 논문과 동일: 1e-6
     'source_width_factor': 10
 }
 

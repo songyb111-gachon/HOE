@@ -1,6 +1,6 @@
 # PyTorch HOE Simulation Models
 
-논문에서 다운받은 TensorFlow/Keras 코드를 **PyTorch**로 변환한 버전입니다.
+논문에서 다운받은 TensorFlow/Keras 코드를 **PyTorch**로 변환한 HOE 메타표면 딥러닝 모델입니다.
 
 ## 📋 목차
 
@@ -9,10 +9,12 @@
 - [프로젝트 구조](#프로젝트-구조)
 - [모델 종류](#모델-종류)
 - [사용법](#사용법)
-  - [1. Inverse Design (역설계)](#1-inverse-design-역설계)
-  - [2. Forward Phase Prediction (정방향 위상 예측)](#2-forward-phase-prediction-정방향-위상-예측)
+  - [1. Forward Phase Prediction (정방향 위상 예측)](#2-forward-phase-prediction-정방향-위상-예측)
+  - [2. Inverse Design (역설계)](#1-inverse-design-역설계)
 - [데이터 형식](#데이터-형식)
 - [Training 팁](#training-팁)
+
+> **💡 Tip**: 전체 프로젝트 개요는 [루트 README](../README.md)를 참고하세요!
 
 ## ⚡ 빠른 시작
 
@@ -66,20 +68,35 @@ python predict_with_sliding_window.py \
 
 Jupyter Notebook을 선호한다면, 각 단계별로 노트북 파일이 준비되어 있습니다:
 
+#### 🔵 Forward Phase Prediction (Pillar → Phase)
+
 ```bash
 # 1. MEEP 시뮬레이션 + 데이터 생성
 jupyter notebook 01_meep_dataset_generation_notebook.py
 # 또는
 python 01_meep_dataset_generation_notebook.py  # VSCode Interactive
 
-# 2. 타일 생성
+# 2. Forward 타일 생성
 jupyter notebook 02_create_training_tiles_notebook.py
 
-# 3. 모델 학습
+# 3. Forward 모델 학습
 jupyter notebook 03_train_model_notebook.py
 
-# 4. 슬라이딩 윈도우 예측
+# 4. Forward 슬라이딩 윈도우 예측
 jupyter notebook 04_sliding_window_prediction_notebook.py
+```
+
+#### 🔴 Inverse Design (Phase → Pillar)
+
+```bash
+# 5. Inverse 타일 생성 (Forward 데이터 역순)
+jupyter notebook 05_create_inverse_tiles_notebook.py
+
+# 6. Inverse 모델 학습
+jupyter notebook 06_train_inverse_model_notebook.py
+
+# 7. Inverse Design 예측 (목표 phase → pillar 설계)
+jupyter notebook 07_inverse_design_notebook.py
 ```
 
 **💡 Jupyter에서 사용 팁:**
@@ -87,6 +104,7 @@ jupyter notebook 04_sliding_window_prediction_notebook.py
 - 파라미터는 각 노트북 상단에서 수정 가능
 - 중간 결과 시각화를 바로 확인 가능
 - GPU 사용 시 더 빠른 실행
+- **Forward와 Inverse는 독립적으로 실행 가능** (데이터만 공유)
 
 ## 🚀 설치
 
