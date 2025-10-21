@@ -32,8 +32,8 @@ print("✅ 모든 라이브러리 임포트 완료!")
 
 # %%
 # ==================== 타일 생성 파라미터 ====================
-DATA_DIR = 'data/forward_phase'          # 대형 샘플 디렉토리
-OUTPUT_DIR = 'data/forward_phase_tiles'  # 타일 출력 디렉토리
+DATA_DIR = 'data/forward_intensity'          # 대형 샘플 디렉토리
+OUTPUT_DIR = 'data/forward_intensity_tiles'  # 타일 출력 디렉토리
 TILE_SIZE = 256                          # 타일 크기
 NUM_TILES_PER_SAMPLE = 1000              # 샘플당 타일 개수
 TRAIN_SAMPLES = 8                        # 훈련용 샘플 개수
@@ -122,15 +122,15 @@ for sample_file in tqdm(train_sample_files, desc="Training samples"):
     output_npy_path = data_dir / 'outputs' / (sample_file.stem + '.npy')
     
     input_img = cv2.imread(str(input_path), cv2.IMREAD_GRAYSCALE)
-    output_phase = np.load(output_npy_path)
+    output_intensity = np.load(output_npy_path)
     
     if input_img is None:
         print(f"  ⚠️  Failed to load {input_path}")
         continue
     
     # 크기가 다르면 조정
-    if input_img.shape != output_phase.shape:
-        input_img = cv2.resize(input_img, (output_phase.shape[1], output_phase.shape[0]), 
+    if input_img.shape != output_intensity.shape:
+        input_img = cv2.resize(input_img, (output_intensity.shape[1], output_intensity.shape[0]), 
                               interpolation=cv2.INTER_NEAREST)
     
     # 타일 추출
@@ -140,7 +140,7 @@ for sample_file in tqdm(train_sample_files, desc="Training samples"):
             input_tile, (top_y, top_x) = extract_random_tile(input_img, TILE_SIZE)
             
             # 출력 타일
-            output_tile = output_phase[top_y:top_y+TILE_SIZE, top_x:top_x+TILE_SIZE]
+            output_tile = output_intensity[top_y:top_y+TILE_SIZE, top_x:top_x+TILE_SIZE]
             
             # 저장
             tile_name = f"tile_{tile_idx:06d}"
@@ -170,15 +170,15 @@ for sample_file in tqdm(val_sample_files, desc="Validation samples"):
     output_npy_path = data_dir / 'outputs' / (sample_file.stem + '.npy')
     
     input_img = cv2.imread(str(input_path), cv2.IMREAD_GRAYSCALE)
-    output_phase = np.load(output_npy_path)
+    output_intensity = np.load(output_npy_path)
     
     if input_img is None:
         print(f"  ⚠️  Failed to load {input_path}")
         continue
     
     # 크기가 다르면 조정
-    if input_img.shape != output_phase.shape:
-        input_img = cv2.resize(input_img, (output_phase.shape[1], output_phase.shape[0]), 
+    if input_img.shape != output_intensity.shape:
+        input_img = cv2.resize(input_img, (output_intensity.shape[1], output_intensity.shape[0]), 
                               interpolation=cv2.INTER_NEAREST)
     
     # 타일 추출
@@ -188,7 +188,7 @@ for sample_file in tqdm(val_sample_files, desc="Validation samples"):
             input_tile, (top_y, top_x) = extract_random_tile(input_img, TILE_SIZE)
             
             # 출력 타일
-            output_tile = output_phase[top_y:top_y+TILE_SIZE, top_x:top_x+TILE_SIZE]
+            output_tile = output_intensity[top_y:top_y+TILE_SIZE, top_x:top_x+TILE_SIZE]
             
             # 저장
             tile_name = f"tile_{tile_idx:06d}"
@@ -263,22 +263,22 @@ for idx, tile_idx in enumerate(sample_indices):
     output_tile_path = output_path / 'train' / 'outputs' / (input_tile_path.stem + '.npy')
     
     input_tile = cv2.imread(str(input_tile_path), cv2.IMREAD_GRAYSCALE)
-    phase_tile = np.load(output_tile_path)
+    intensity_tile = np.load(output_tile_path)
     
     # 입력 타일
     axes[idx, 0].imshow(input_tile, cmap='gray')
     axes[idx, 0].set_title(f'Tile {tile_idx}: Input\n{input_tile.shape}')
     axes[idx, 0].axis('off')
     
-    # 위상 타일
-    im = axes[idx, 1].imshow(phase_tile, cmap='hsv', vmin=-np.pi, vmax=np.pi)
-    axes[idx, 1].set_title(f'Tile {tile_idx}: Phase\n{phase_tile.shape}')
+    # Intensity 타일
+    im = axes[idx, 1].imshow(intensity_tile, cmap='hot')
+    axes[idx, 1].set_title(f'Tile {tile_idx}: EM Intensity\n{intensity_tile.shape}')
     axes[idx, 1].axis('off')
     plt.colorbar(im, ax=axes[idx, 1], fraction=0.046)
     
     # 히스토그램
-    axes[idx, 2].hist(phase_tile.flatten(), bins=30, alpha=0.7, edgecolor='black')
-    axes[idx, 2].set_xlabel('Phase (rad)')
+    axes[idx, 2].hist(intensity_tile.flatten(), bins=30, alpha=0.7, color='red', edgecolor='black')
+    axes[idx, 2].set_xlabel('Intensity')
     axes[idx, 2].set_ylabel('Count')
     axes[idx, 2].set_title(f'Tile {tile_idx}: Distribution')
     axes[idx, 2].grid(True, alpha=0.3)

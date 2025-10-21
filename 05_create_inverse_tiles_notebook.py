@@ -4,7 +4,7 @@
 # Forward 데이터를 역순으로 사용하여 Inverse Design용 타일을 생성합니다.
 #
 # **데이터 방향:**
-# - Input: Phase Map (4096×4096 .npy) ← Forward의 outputs
+# - Input: EM Intensity Map (4096×4096 .npy) ← Forward의 outputs
 # - Output: Pillar Pattern (4096×4096 .png) ← Forward의 inputs
 #
 # ## 📋 목차
@@ -36,7 +36,7 @@ print("✅ 모든 라이브러리 임포트 완료!")
 
 # %%
 # ==================== 타일 생성 파라미터 ====================
-DATA_DIR = 'data/forward_phase'          # Forward 데이터 디렉토리
+DATA_DIR = 'data/forward_intensity'          # Forward 데이터 디렉토리
 OUTPUT_DIR = 'data/inverse_tiles'        # Inverse 타일 출력 디렉토리
 TILE_SIZE = 256                          # 타일 크기
 NUM_TILES_PER_SAMPLE = 1000              # 샘플당 타일 개수
@@ -58,7 +58,7 @@ print(f"   훈련 샘플: {TRAIN_SAMPLES} → {TRAIN_SAMPLES * NUM_TILES_PER_SAM
 print(f"   검증 샘플: {VAL_SAMPLES} → {VAL_SAMPLES * NUM_TILES_PER_SAMPLE:,} 타일")
 print(f"   총 타일: {(TRAIN_SAMPLES + VAL_SAMPLES) * NUM_TILES_PER_SAMPLE:,}")
 print("\n🔄 데이터 방향 (Inverse):")
-print("   Input:  Phase Map (.npy) ← Forward의 outputs")
+print("   Input:  EM Intensity Map (.npy) ← Forward의 outputs")
 print("   Output: Pillar Pattern (.png) ← Forward의 inputs")
 
 # %% [markdown]
@@ -111,7 +111,7 @@ if len(all_samples) > 0:
     sample_pillar = cv2.imread(str(sample_pillar_path), cv2.IMREAD_GRAYSCALE)
     
     print(f"\n📊 샘플 크기:")
-    print(f"   Phase Map: {sample_phase.shape} (range: {sample_phase.min():.2f} ~ {sample_phase.max():.2f})")
+    print(f"   EM Intensity Map: {sample_phase.shape} (range: {sample_phase.min():.2f} ~ {sample_phase.max():.2f})")
     if sample_pillar is not None:
         print(f"   Pillar Pattern: {sample_pillar.shape} (range: {sample_pillar.min()} ~ {sample_pillar.max()})")
 
@@ -279,7 +279,7 @@ print(f"\n📊 최종 통계:")
 print(f"   훈련 타일: {tile_idx:,}개")
 print(f"   검증 타일: {val_tile_idx:,}개")
 print(f"   총 타일: {tile_idx + val_tile_idx:,}개")
-print(f"\n   Phase Map 범위 (train): {metadata['train_stats']['phase_min']:.2f} ~ {metadata['train_stats']['phase_max']:.2f}")
+print(f"\n   EM Intensity Map 범위 (train): {metadata['train_stats']['phase_min']:.2f} ~ {metadata['train_stats']['phase_max']:.2f}")
 print(f"   Pillar Pattern 범위 (train): {metadata['train_stats']['pillar_min']} ~ {metadata['train_stats']['pillar_max']}")
 
 # %% [markdown]
@@ -310,7 +310,7 @@ for i, idx in enumerate(sample_indices):
     
     # Plot
     axes[i, 0].imshow(input_tile, cmap='twilight')
-    axes[i, 0].set_title(f'Input: Phase Map (Tile {idx})\nRange: [{input_tile.min():.2f}, {input_tile.max():.2f}]')
+    axes[i, 0].set_title(f'Input: EM Intensity Map (Tile {idx})\nRange: [{input_tile.min():.2f}, {input_tile.max():.2f}]')
     axes[i, 0].axis('off')
     
     axes[i, 1].imshow(output_tile, cmap='gray')

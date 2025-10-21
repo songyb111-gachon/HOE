@@ -5,8 +5,8 @@ Generate Training Tiles from Large Samples using Sliding Window Approach
 
 Usage:
     python create_training_tiles.py \
-        --data_dir data/forward_phase \
-        --output_dir data/forward_phase_tiles \
+        --data_dir data/forward_intensity \
+        --output_dir data/forward_intensity_tiles \
         --tile_size 256 \
         --num_tiles_per_sample 1000 \
         --train_samples 8 \

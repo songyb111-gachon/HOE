@@ -1,10 +1,10 @@
 """
-PyTorch Forward Phase Map Prediction U-Net Model
-Random Pillar Pattern → Phase Map
+PyTorch Forward EM Near-Field Intensity Prediction U-Net Model
+Random Pillar Pattern → EM Intensity Map
 
 Features:
 - Input: Binary mask (random pillar pattern)
-- Output: Phase map (continuous values)
+- Output: EM near-field intensity map (|Ex|² + |Ey|² + |Ez|²)
 - Based on U-Net architecture for image-to-image regression
 """
 
@@ -14,13 +14,14 @@ from .unet_blocks import ConvBlock, EncoderBlock, DecoderBlock, OutputBlock
 
 
 class ForwardPhaseUNet(nn.Module):
-    """U-Net for forward phase map prediction
+    """U-Net for forward EM intensity map prediction
     
-    Predicts phase map from random pillar pattern (MEEP surrogate)
+    Predicts EM near-field intensity map from random pillar pattern (MEEP surrogate)
+    Output: |Ex|² + |Ey|² + |Ez|²
     
     Args:
         in_channels: Number of input channels (default: 1 for binary mask)
-        out_channels: Number of output channels (default: 1 for phase map)
+        out_channels: Number of output channels (default: 1 for intensity map)
         layer_num: Number of encoder/decoder layers (4-7)
         base_features: Base number of features
         kernel_size: Convolution kernel size

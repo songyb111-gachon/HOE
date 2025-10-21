@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-🔬 Random Pillar Pattern + Plane Wave + Phase Map Simulation
-================================================================
+🔬 Random Pillar Pattern + Plane Wave + EM Near-Field Intensity Map Simulation
+================================================================================
 
 3D MEEP simulation with random pillar pattern from random_pillar_generator.py
 - Random pillar pattern (not periodic grating)
 - 3D plane wave source (using amp_func)
-- Phase map calculation and analysis
+- EM near-field intensity map calculation and analysis
+- Total intensity: |Ex|² + |Ey|² + |Ez|²
 - Based on HOE simulation structure
 """
 
@@ -27,7 +28,7 @@ class AutoLogger:
         self.log_path = os.path.join("logs", f"{name}_{timestamp}{ext}")
         self.terminal = sys.stdout
         self.log_file = open(self.log_path, 'w', encoding='utf-8')
-        header = f"{'='*80}\nRandom Pillar Phase Map Simulation Log\nStart: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*80}\n\n"
+        header = f"{'='*80}\nRandom Pillar EM Near-Field Intensity Map Simulation Log\nStart: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*80}\n\n"
         self.log_file.write(header)
         self.log_file.flush()
         print(f"Log file started: {self.log_path}")
@@ -42,7 +43,7 @@ class AutoLogger:
         self.log_file.flush()
 
 # Start logging
-_auto_logger = AutoLogger("random_pillar_phase_simulation.txt")
+_auto_logger = AutoLogger("random_pillar_intensity_simulation.txt")
 sys.stdout = _auto_logger
 
 import atexit
@@ -92,10 +93,10 @@ AUTO_TERMINATE = True      # 자동 종료 활성화
 DECAY_THRESHOLD = 1e-4     # 필드 감쇠 임계값 (상대값, 정상 상태 판단)
 SOURCE_WIDTH_FACTOR = 10   # GaussianSource 폭 (파장 배수)
 
-# Multi-parameter sweep (nm 단위)
+# Single parameter (nm 단위) - 단일 파장만 사용
 PARAMETER_SWEEP = {
     'pillar_height_nm': [600.0],  # 기둥(필름) 두께 (nm)
-    'wavelength_nm': [405.0, 532.0, 633.0],  # RGB 파장 (nm)
+    'wavelength_nm': [535.0],  # 단일 파장: 535nm 녹색 (RGB sweep 제거)
     'delta_n': [0.04],  # 굴절률 변조
     'incident_deg': [0.0]  # 입사각
 }
@@ -466,8 +467,10 @@ def visualize_actual_meep_pattern(sim, size_x_nm, size_y_nm, size_z_nm,
     print(f"  💾 Saved: {filename}")
 
 
-def calculate_phase_map_from_monitors(back_monitors, size_y_nm, size_z_nm, wavelength_nm):
-    """Calculate phase map from back monitors (nm units)
+def calculate_intensity_map_from_monitors(back_monitors, size_y_nm, size_z_nm, wavelength_nm):
+    """Calculate EM near-field intensity map from back monitors (nm units)
+    
+    Intensity: Total electric field intensity = |Ex|² + |Ey|² + |Ez|²
     
     Parameters:
     -----------
@@ -480,10 +483,10 @@ def calculate_phase_map_from_monitors(back_monitors, size_y_nm, size_z_nm, wavel
         
     Returns:
     --------
-    phase_analysis : dict
-        Phase map analysis results
+    intensity_analysis : dict
+        Intensity map analysis results (includes phase and amplitude for reference)
     """
-    print(f"\n📊 Calculating phase map from transmitted field...")
+    print(f"\n📊 Calculating EM near-field intensity map from transmitted field...")
     
     try:
         # Use BackNear monitor
@@ -495,29 +498,42 @@ def calculate_phase_map_from_monitors(back_monitors, size_y_nm, size_z_nm, wavel
         print(f"  • Field size: {ez_field.shape}")
         print(f"  • Monitor size: {size_y_nm:.0f} × {size_z_nm:.0f} nm")
         
-        # Calculate phase from Ez field (dominant component)
-        phase_map = np.angle(ez_field)  # Phase in radians (-π to π)
-        
-        # Calculate amplitude
-        amplitude_map = np.abs(ez_field)
-        
-        # Total intensity (all components)
+        # Total intensity (all components) - PRIMARY OUTPUT
         intensity_map = np.abs(ez_field)**2 + np.abs(ex_field)**2 + np.abs(ey_field)**2
         
-        # Statistics
+        # Calculate phase from Ez field (for reference)
+        phase_map = np.angle(ez_field)  # Phase in radians (-π to π)
+        
+        # Calculate amplitude (for reference)
+        amplitude_map = np.abs(ez_field)
+        
+        # Intensity statistics (PRIMARY)
+        intensity_mean = np.mean(intensity_map)
+        intensity_std = np.std(intensity_map)
+        intensity_min = np.min(intensity_map)
+        intensity_max = np.max(intensity_map)
+        intensity_range = intensity_max - intensity_min
+        
+        # Phase statistics (reference)
         phase_mean = np.mean(phase_map)
         phase_std = np.std(phase_map)
         phase_min = np.min(phase_map)
         phase_max = np.max(phase_map)
         phase_range = phase_max - phase_min
         
+        # Amplitude statistics (reference)
         amplitude_mean = np.mean(amplitude_map)
         amplitude_std = np.std(amplitude_map)
         
-        phase_analysis = {
-            'phase_map': phase_map,
-            'amplitude_map': amplitude_map,
-            'intensity_map': intensity_map,
+        intensity_analysis = {
+            'intensity_map': intensity_map,          # PRIMARY OUTPUT
+            'phase_map': phase_map,                  # Reference
+            'amplitude_map': amplitude_map,          # Reference
+            'intensity_mean': intensity_mean,
+            'intensity_std': intensity_std,
+            'intensity_min': intensity_min,
+            'intensity_max': intensity_max,
+            'intensity_range': intensity_range,
             'phase_mean': phase_mean,
             'phase_std': phase_std,
             'phase_min': phase_min,
@@ -530,108 +546,111 @@ def calculate_phase_map_from_monitors(back_monitors, size_y_nm, size_z_nm, wavel
             'size_z_nm': size_z_nm
         }
         
-        print(f"  📐 Phase map statistics:")
+        print(f"  📐 Intensity map statistics (PRIMARY OUTPUT):")
+        print(f"    • Mean intensity: {intensity_mean:.4e}")
+        print(f"    • Std intensity: {intensity_std:.4e}")
+        print(f"    • Intensity range: [{intensity_min:.4e}, {intensity_max:.4e}]")
+        print(f"  📐 Phase map statistics (reference):")
         print(f"    • Mean phase: {phase_mean:.4f} rad ({phase_mean/np.pi:.2f}π)")
-        print(f"    • Std phase: {phase_std:.4f} rad ({phase_std/np.pi:.2f}π)")
         print(f"    • Phase range: {phase_range:.4f} rad ({phase_range/np.pi:.2f}π)")
-        print(f"    • Min phase: {phase_min:.4f} rad")
-        print(f"    • Max phase: {phase_max:.4f} rad")
-        print(f"  📐 Amplitude statistics:")
+        print(f"  📐 Amplitude statistics (reference):")
         print(f"    • Mean amplitude: {amplitude_mean:.4e}")
-        print(f"    • Std amplitude: {amplitude_std:.4e}")
         
-        return phase_analysis
+        return intensity_analysis
         
     except Exception as e:
-        print(f"    ⚠️ Phase map calculation failed: {e}")
+        print(f"    ⚠️ Intensity map calculation failed: {e}")
         return {}
 
 
-def visualize_phase_map(phase_analysis, mask_info, wavelength_nm=535, pillar_height_nm=600, 
+def visualize_intensity_map(intensity_analysis, mask_info, wavelength_nm=535, pillar_height_nm=600, 
                         delta_n=0.04, n_base=1.5, resolution_nm=0.03, incident_deg=0):
-    """Visualize phase map results with parameters in filename"""
+    """Visualize EM near-field intensity map results with parameters in filename
     
-    if not phase_analysis:
-        print(f"⚠️ No phase map data to visualize.")
+    Primary output: Intensity map (|Ex|² + |Ey|² + |Ez|²)
+    Reference: Phase and amplitude maps
+    """
+    
+    if not intensity_analysis:
+        print(f"⚠️ No intensity map data to visualize.")
         return
     
-    print(f"\n🎨 Generating phase map visualization...")
+    print(f"\n🎨 Generating intensity map visualization...")
     
-    phase_map = phase_analysis['phase_map']
-    amplitude_map = phase_analysis['amplitude_map']
-    intensity_map = phase_analysis['intensity_map']
-    size_y_nm = phase_analysis['size_y_nm']
-    size_z_nm = phase_analysis['size_z_nm']
+    intensity_map = intensity_analysis['intensity_map']  # PRIMARY
+    phase_map = intensity_analysis['phase_map']          # Reference
+    amplitude_map = intensity_analysis['amplitude_map']  # Reference
+    size_y_nm = intensity_analysis['size_y_nm']
+    size_z_nm = intensity_analysis['size_z_nm']
     
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
     
     extent = [-size_z_nm*0.5, size_z_nm*0.5, -size_y_nm*0.5, size_y_nm*0.5]
     
-    # 1. Phase map
+    # 1. Intensity map (PRIMARY OUTPUT)
     ax1 = axes[0, 0]
-    im1 = ax1.imshow(phase_map, extent=extent, cmap='hsv', origin='lower',
-                     vmin=-np.pi, vmax=np.pi)
-    ax1.set_title('Phase Map (YZ plane)', fontsize=14, fontweight='bold')
+    im1 = ax1.imshow(intensity_map, extent=extent, cmap='hot', origin='lower')
+    ax1.set_title('EM Near-Field Intensity Map\n|Ex|² + |Ey|² + |Ez|² (PRIMARY OUTPUT)', 
+                  fontsize=14, fontweight='bold', color='darkred')
     ax1.set_xlabel('z (nm)')
     ax1.set_ylabel('y (nm)')
-    cbar1 = plt.colorbar(im1, ax=ax1, label='Phase (rad)')
-    cbar1.set_ticks([-np.pi, -np.pi/2, 0, np.pi/2, np.pi])
-    cbar1.set_ticklabels(['-π', '-π/2', '0', 'π/2', 'π'])
+    plt.colorbar(im1, ax=ax1, label='Intensity')
     ax1.grid(True, alpha=0.3)
     
-    # 2. Amplitude map
+    # 2. Phase map (reference)
     ax2 = axes[0, 1]
-    im2 = ax2.imshow(amplitude_map, extent=extent, cmap='viridis', origin='lower')
-    ax2.set_title('Amplitude Map |Ez|', fontsize=14, fontweight='bold')
+    im2 = ax2.imshow(phase_map, extent=extent, cmap='hsv', origin='lower',
+                     vmin=-np.pi, vmax=np.pi)
+    ax2.set_title('Phase Map (reference)', fontsize=14, fontweight='bold')
     ax2.set_xlabel('z (nm)')
     ax2.set_ylabel('y (nm)')
-    plt.colorbar(im2, ax=ax2, label='Amplitude')
+    cbar2 = plt.colorbar(im2, ax=ax2, label='Phase (rad)')
+    cbar2.set_ticks([-np.pi, -np.pi/2, 0, np.pi/2, np.pi])
+    cbar2.set_ticklabels(['-π', '-π/2', '0', 'π/2', 'π'])
     ax2.grid(True, alpha=0.3)
     
-    # 3. Intensity map
+    # 3. Amplitude map (reference)
     ax3 = axes[0, 2]
-    im3 = ax3.imshow(intensity_map, extent=extent, cmap='hot', origin='lower')
-    ax3.set_title('Total Intensity', fontsize=14, fontweight='bold')
+    im3 = ax3.imshow(amplitude_map, extent=extent, cmap='viridis', origin='lower')
+    ax3.set_title('Amplitude Map |Ez| (reference)', fontsize=14, fontweight='bold')
     ax3.set_xlabel('z (nm)')
     ax3.set_ylabel('y (nm)')
-    plt.colorbar(im3, ax=ax3, label='Intensity')
+    plt.colorbar(im3, ax=ax3, label='Amplitude')
     ax3.grid(True, alpha=0.3)
     
-    # 4. Phase histogram
+    # 4. Intensity histogram (PRIMARY)
     ax4 = axes[1, 0]
-    ax4.hist(phase_map.flatten(), bins=50, alpha=0.7, color='blue', edgecolor='black')
-    ax4.set_xlabel('Phase (rad)')
+    ax4.hist(intensity_map.flatten(), bins=50, alpha=0.7, color='red', edgecolor='black')
+    ax4.set_xlabel('Intensity')
     ax4.set_ylabel('Count')
-    ax4.set_title('Phase Distribution', fontsize=14, fontweight='bold')
-    ax4.axvline(x=phase_analysis['phase_mean'], color='red', linestyle='--', 
-                linewidth=2, label=f"Mean: {phase_analysis['phase_mean']:.2f}")
+    ax4.set_title('Intensity Distribution (PRIMARY)', fontsize=14, fontweight='bold', color='darkred')
+    ax4.axvline(x=intensity_analysis['intensity_mean'], color='darkred', linestyle='--', 
+                linewidth=2, label=f"Mean: {intensity_analysis['intensity_mean']:.2e}")
     ax4.legend()
     ax4.grid(True, alpha=0.3)
     
-    # 5. Amplitude histogram
+    # 5. Phase histogram (reference)
     ax5 = axes[1, 1]
-    ax5.hist(amplitude_map.flatten(), bins=50, alpha=0.7, color='green', edgecolor='black')
-    ax5.set_xlabel('Amplitude')
+    ax5.hist(phase_map.flatten(), bins=50, alpha=0.7, color='blue', edgecolor='black')
+    ax5.set_xlabel('Phase (rad)')
     ax5.set_ylabel('Count')
-    ax5.set_title('Amplitude Distribution', fontsize=14, fontweight='bold')
-    ax5.axvline(x=phase_analysis['amplitude_mean'], color='red', linestyle='--',
-                linewidth=2, label=f"Mean: {phase_analysis['amplitude_mean']:.2e}")
+    ax5.set_title('Phase Distribution (reference)', fontsize=14, fontweight='bold')
+    ax5.axvline(x=intensity_analysis['phase_mean'], color='red', linestyle='--', 
+                linewidth=2, label=f"Mean: {intensity_analysis['phase_mean']:.2f}")
     ax5.legend()
     ax5.grid(True, alpha=0.3)
     
-    # 6. Phase unwrapping (center line profile)
+    # 6. Intensity profile (center line)
     ax6 = axes[1, 2]
-    center_idx = phase_map.shape[0] // 2
-    phase_profile = phase_map[center_idx, :]
-    z_coords = np.linspace(-size_z_nm*0.5, size_z_nm*0.5, len(phase_profile))
+    center_idx = intensity_map.shape[0] // 2
+    intensity_profile = intensity_map[center_idx, :]
+    z_coords = np.linspace(-size_z_nm*0.5, size_z_nm*0.5, len(intensity_profile))
     
-    ax6.plot(z_coords, phase_profile, 'b-', linewidth=2, label='Phase profile (y=0)')
+    ax6.plot(z_coords, intensity_profile, 'r-', linewidth=2, label='Intensity profile (y=0)')
     ax6.set_xlabel('z (nm)')
-    ax6.set_ylabel('Phase (rad)')
-    ax6.set_title('Phase Profile at y=0', fontsize=14, fontweight='bold')
-    ax6.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-    ax6.axhline(y=np.pi, color='r', linestyle='--', alpha=0.5, label='±π')
-    ax6.axhline(y=-np.pi, color='r', linestyle='--', alpha=0.5)
+    ax6.set_ylabel('Intensity')
+    ax6.set_title('Intensity Profile at y=0 (PRIMARY)', fontsize=14, fontweight='bold', color='darkred')
+    ax6.axhline(y=intensity_analysis['intensity_mean'], color='darkred', linestyle='--', alpha=0.5, label=f'Mean')
     ax6.legend()
     ax6.grid(True, alpha=0.3)
     
@@ -647,7 +666,7 @@ def visualize_phase_map(phase_analysis, mask_info, wavelength_nm=535, pillar_hei
                 f"inc{incident_deg:.0f}deg_"
                 f"size{int(size_y_nm)}x{int(size_z_nm)}nm")
     
-    filename = f"phase_map_analysis_{param_str}_{timestamp}.png"
+    filename = f"intensity_map_analysis_{param_str}_{timestamp}.png"
     plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
     
@@ -927,21 +946,21 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
         elif position_type == "back":
             back_monitors[name] = monitor_info
     
-    # Calculate phase map
-    phase_analysis = calculate_phase_map_from_monitors(back_monitors, size_y_nm, 
-                                                       size_z_nm, wavelength_nm)
+    # Calculate EM near-field intensity map
+    intensity_analysis = calculate_intensity_map_from_monitors(back_monitors, size_y_nm, 
+                                                                size_z_nm, wavelength_nm)
     
-    # Visualize phase map
-    if phase_analysis:
-        visualize_phase_map(phase_analysis, mask_info, 
-                           wavelength_nm=wavelength_nm,
-                           pillar_height_nm=pillar_height_nm,
-                           delta_n=delta_n,
-                           n_base=n_base,
-                           resolution_nm=resolution_nm,
-                           incident_deg=incident_deg)
+    # Visualize intensity map
+    if intensity_analysis:
+        visualize_intensity_map(intensity_analysis, mask_info, 
+                               wavelength_nm=wavelength_nm,
+                               pillar_height_nm=pillar_height_nm,
+                               delta_n=delta_n,
+                               n_base=n_base,
+                               resolution_nm=resolution_nm,
+                               incident_deg=incident_deg)
         
-        # Save phase map with all parameters in filename
+        # Save intensity map (PRIMARY) with all parameters in filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs("meep_output", exist_ok=True)
         
@@ -954,11 +973,14 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
                     f"inc{incident_deg:.0f}deg_"
                     f"size{int(size_y_nm)}x{int(size_z_nm)}nm")
         
-        filename_base = f"phase_map_{param_str}_{timestamp}"
+        filename_base = f"intensity_map_{param_str}_{timestamp}"
         
-        np.save(f"meep_output/{filename_base}.npy", phase_analysis['phase_map'])
-        np.save(f"meep_output/amplitude_map_{param_str}_{timestamp}.npy", phase_analysis['amplitude_map'])
-        print(f"\n💾 Phase map saved: meep_output/{filename_base}.npy")
+        # Save PRIMARY output (intensity) and reference data (phase, amplitude)
+        np.save(f"meep_output/{filename_base}.npy", intensity_analysis['intensity_map'])
+        np.save(f"meep_output/phase_map_{param_str}_{timestamp}.npy", intensity_analysis['phase_map'])
+        np.save(f"meep_output/amplitude_map_{param_str}_{timestamp}.npy", intensity_analysis['amplitude_map'])
+        print(f"\n💾 Intensity map saved (PRIMARY): meep_output/{filename_base}.npy")
+        print(f"   Phase & Amplitude maps saved (reference)")
         print(f"   Parameters: wavelength={wavelength_nm}nm, height={pillar_height_nm}nm, Δn={delta_n}, n_base={n_base}")
     
     # Basic visualization
@@ -1016,7 +1038,7 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
         'all_monitors': monitor_data,
         'front_monitors': front_monitors,
         'back_monitors': back_monitors,
-        'phase_analysis': phase_analysis,
+        'intensity_analysis': intensity_analysis,  # PRIMARY OUTPUT
         'mask_info': mask_info,
         'simulation_params': {
             'wavelength_nm': wavelength_nm,
@@ -1061,7 +1083,7 @@ def main():
 def generate_single_training_sample(sample_idx, output_dir, 
                                    pillar_params, simulation_params,
                                    visualize=False):
-    """Generate one training sample (input mask + output phase map)
+    """Generate one training sample (input mask + output EM near-field intensity map)
     
     Parameters:
     -----------
@@ -1148,23 +1170,24 @@ def generate_single_training_sample(sample_idx, output_dir,
         if os.path.exists(temp_mask_file):
             os.remove(temp_mask_file)
         
-        # 3. Extract phase map
-        phase_analysis = results.get('phase_analysis', {})
-        if not phase_analysis:
-            print(f"  ❌ Failed to get phase map")
+        # 3. Extract EM near-field intensity map
+        intensity_analysis = results.get('intensity_analysis', {})
+        if not intensity_analysis:
+            print(f"  ❌ Failed to get intensity map")
             return False, {}
         
-        phase_map = phase_analysis['phase_map']
-        print(f"  ✓ Phase map extracted: {phase_map.shape}")
+        intensity_map = intensity_analysis['intensity_map']
+        phase_map = intensity_analysis['phase_map']  # For reference
+        print(f"  ✓ Intensity map extracted: {intensity_map.shape}")
         
         # 4. Save input and output
         print(f"\n3️⃣ Saving data...")
         
         # Create directories
         input_dir = output_dir / 'inputs'
-        output_phase_dir = output_dir / 'outputs'
+        output_intensity_dir = output_dir / 'outputs'
         input_dir.mkdir(parents=True, exist_ok=True)
-        output_phase_dir.mkdir(parents=True, exist_ok=True)
+        output_intensity_dir.mkdir(parents=True, exist_ok=True)
         
         # Save input mask as PNG (0-255 grayscale)
         sample_name = f"sample_{sample_idx:04d}"
@@ -1175,10 +1198,10 @@ def generate_single_training_sample(sample_idx, output_dir,
         cv2.imwrite(str(input_path), mask_img)
         print(f"  ✓ Input mask saved: {input_path}")
         
-        # Save output phase map as .npy (preserve precision)
-        output_path = output_phase_dir / f"{sample_name}.npy"
-        np.save(output_path, phase_map.astype(np.float32))
-        print(f"  ✓ Output phase map saved: {output_path}")
+        # Save output intensity map as .npy (preserve precision) - PRIMARY OUTPUT
+        output_path = output_intensity_dir / f"{sample_name}.npy"
+        np.save(output_path, intensity_map.astype(np.float32))
+        print(f"  ✓ Output intensity map saved (PRIMARY): {output_path}")
         
         # 5. Optional: Save visualization
         if visualize:
@@ -1192,17 +1215,17 @@ def generate_single_training_sample(sample_idx, output_dir,
             axes[0].set_title(f'Input: Random Pillar Mask\n{mask.shape}, Fill: {fill_ratio:.1f}%')
             axes[0].axis('off')
             
-            # Output phase map
-            im1 = axes[1].imshow(phase_map, cmap='hsv', vmin=-np.pi, vmax=np.pi)
-            axes[1].set_title(f'Output: Phase Map\n{phase_map.shape}')
+            # Output intensity map (PRIMARY)
+            im1 = axes[1].imshow(intensity_map, cmap='hot')
+            axes[1].set_title(f'Output: EM Intensity Map (PRIMARY)\n{intensity_map.shape}')
             axes[1].axis('off')
-            plt.colorbar(im1, ax=axes[1], label='Phase (rad)')
+            plt.colorbar(im1, ax=axes[1], label='Intensity')
             
-            # Phase histogram
-            axes[2].hist(phase_map.flatten(), bins=50, alpha=0.7, edgecolor='black')
-            axes[2].set_xlabel('Phase (rad)')
+            # Intensity histogram (PRIMARY)
+            axes[2].hist(intensity_map.flatten(), bins=50, alpha=0.7, color='red', edgecolor='black')
+            axes[2].set_xlabel('Intensity')
             axes[2].set_ylabel('Count')
-            axes[2].set_title('Phase Distribution')
+            axes[2].set_title('Intensity Distribution (PRIMARY)')
             axes[2].grid(True, alpha=0.3)
             
             plt.tight_layout()
@@ -1216,11 +1239,16 @@ def generate_single_training_sample(sample_idx, output_dir,
         sample_info = {
             'sample_idx': sample_idx,
             'input_shape': mask.shape,
-            'output_shape': phase_map.shape,
+            'output_shape': intensity_map.shape,
             'fill_ratio': fill_ratio,
             'num_pillars': len(pillars),
             'pillar_params': pillar_params,
             'simulation_params': simulation_params,
+            'intensity_mean': float(np.mean(intensity_map)),
+            'intensity_std': float(np.std(intensity_map)),
+            'intensity_min': float(np.min(intensity_map)),
+            'intensity_max': float(np.max(intensity_map)),
+            # Phase info for reference
             'phase_mean': float(np.mean(phase_map)),
             'phase_std': float(np.std(phase_map)),
             'phase_min': float(np.min(phase_map)),
@@ -1408,11 +1436,11 @@ def generate_training_dataset(num_samples=100,
     print(f"    └── dataset_metadata.json")
     
     print(f"\n💡 Usage with PyTorch:")
-    print(f"   from pytorch_codes.datasets.hoe_dataset import InverseDesignDataset")
-    print(f"   dataset = InverseDesignDataset('{output_dir}', output_extension='npy')")
+    print(f"   from pytorch_codes.datasets.hoe_dataset import ForwardIntensityDataset")
+    print(f"   dataset = ForwardIntensityDataset('{output_dir}', output_extension='npy')")
     print(f"   sample = dataset[0]")
     print(f"   input_mask = sample['image']  # Shape: (1, H, W)")
-    print(f"   phase_map = sample['target']  # Shape: (1, H, W)")
+    print(f"   intensity_map = sample['target']  # Shape: (1, H, W) - EM Near-Field Intensity")
     
     if failed_samples:
         print(f"\n⚠️  Failed sample indices: {failed_samples[:10]}{'...' if len(failed_samples) > 10 else ''}")

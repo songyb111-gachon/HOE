@@ -199,7 +199,7 @@ def train(args):
     
     train_loader, val_loader, test_loader = create_dataloaders(
         dataset_path=args.data_path,
-        dataset_type='forward_phase',  # Forward phase dataset
+        dataset_type='forward_intensity',  # Forward phase dataset
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         normalize=False  # ForwardPhaseDataset handles normalization internally
@@ -264,7 +264,7 @@ def test(args):
     print(f"\n📂 Loading test data from: {args.data_path}")
     _, _, test_loader = create_dataloaders(
         dataset_path=args.data_path,
-        dataset_type='forward_phase',
+        dataset_type='forward_intensity',
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         normalize=False

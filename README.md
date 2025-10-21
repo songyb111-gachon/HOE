@@ -30,7 +30,7 @@ MEEP 전자기파 시뮬레이션과 PyTorch 딥러닝을 결합한 메타표면
 이 프로젝트는 **메타표면(Metasurface) 홀로그래픽 광학 소자(HOE)** 설계를 위한 완전한 워크플로우를 제공합니다:
 
 ### 🔵 Forward Prediction (정방향 예측)
-**Pillar Pattern → Phase Map**
+**Pillar Pattern → EM Intensity Map**
 - Random pillar 패턴에서 위상 맵 빠른 예측
 - MEEP 시뮬레이션 대체 (100-600배 빠름)
 - 실시간 메타표면 응답 분석
@@ -92,7 +92,7 @@ HOE/
 ├─ 🧠 pytorch_codes/
 │  ├─ models/
 │  │  ├─ unet_blocks.py                            U-Net 기본 블록
-│  │  ├─ forward_phase_unet.py                     Forward 모델
+│  │  ├─ forward_intensity_unet.py                     Forward 모델
 │  │  └─ inverse_unet.py                           Inverse 모델
 │  ├─ datasets/
 │  │  └─ hoe_dataset.py                            Dataset 클래스
@@ -200,16 +200,16 @@ python predict_with_sliding_window.py --input_mask new_pattern.png
 │ 1️⃣ MEEP 데이터 생성 (01_meep_dataset_generation)        │
 │    Random Pillar Generator → MEEP Simulation            │
 │    ↓                                                     │
-│    data/forward_phase/                                  │
+│    data/forward_intensity/                                  │
 │    ├─ inputs/  (4096×4096 PNG pillar masks)           │
-│    └─ outputs/ (4096×4096 NPY phase maps)             │
+│    └─ outputs/ (4096×4096 NPY intensity maps)             │
 └─────────────────────────────────────────────────────────┘
                     ↓ Forward                ↓ Inverse
 ┌──────────────────────────────┐  ┌──────────────────────────────┐
 │ 2️⃣ Forward Tile (02)         │  │ 5️⃣ Inverse Tile (05)         │
 │   256×256 tiles, stride=64   │  │   Phase → Pillar (역순)      │
 │   ↓                          │  │   ↓                          │
-│   data/forward_phase_tiles/  │  │   data/inverse_tiles/        │
+│   data/forward_intensity_tiles/  │  │   data/inverse_tiles/        │
 │   ├─ train/ (8,000 tiles)   │  │   ├─ train/ (8,000 tiles)   │
 │   └─ val/   (2,000 tiles)   │  │   └─ val/   (2,000 tiles)   │
 └──────────────────────────────┘  └──────────────────────────────┘
@@ -220,7 +220,7 @@ python predict_with_sliding_window.py --input_mask new_pattern.png
 │   MSE Loss                   │  │   Weighted BCE Loss          │
 │   ↓                          │  │   ↓                          │
 │   checkpoints/               │  │   checkpoints/               │
-│   forward_phase_*/           │  │   inverse_design_*/          │
+│   forward_intensity_*/           │  │   inverse_design_*/          │
 └──────────────────────────────┘  └──────────────────────────────┘
                     ↓                          ↓
 ┌──────────────────────────────┐  ┌──────────────────────────────┐
@@ -261,8 +261,8 @@ SIMULATION_PARAMS = {
 ```
 
 **출력:**
-- `data/forward_phase/inputs/` - Pillar masks (PNG)
-- `data/forward_phase/outputs/` - Phase maps (NPY)
+- `data/forward_intensity/inputs/` - Pillar masks (PNG)
+- `data/forward_intensity/outputs/` - Phase maps (NPY)
 
 ---
 
@@ -282,8 +282,8 @@ VAL_SAMPLES = 2                     # 검증용
 ```
 
 **출력:**
-- `data/forward_phase_tiles/train/` - 8,000 타일
-- `data/forward_phase_tiles/val/` - 2,000 타일
+- `data/forward_intensity_tiles/train/` - 8,000 타일
+- `data/forward_intensity_tiles/val/` - 2,000 타일
 
 ---
 
@@ -304,7 +304,7 @@ LOSS_TYPE = 'mse'                   # 손실 함수
 ```
 
 **출력:**
-- `checkpoints/forward_phase_basic_tiles/best_model.pth`
+- `checkpoints/forward_intensity_basic_tiles/best_model.pth`
 - `logs/` - TensorBoard 로그
 
 ---
@@ -318,8 +318,8 @@ LOSS_TYPE = 'mse'                   # 손실 함수
 
 **주요 설정:**
 ```python
-INPUT_MASK_PATH = 'data/forward_phase/inputs/sample_0000.png'
-CHECKPOINT_PATH = 'checkpoints/forward_phase_basic_tiles/best_model.pth'
+INPUT_MASK_PATH = 'data/forward_intensity/inputs/sample_0000.png'
+CHECKPOINT_PATH = 'checkpoints/forward_intensity_basic_tiles/best_model.pth'
 TILE_SIZE = 256                     # 타일 크기
 STRIDE = 64                         # Overlap
 ```
@@ -328,7 +328,7 @@ STRIDE = 64                         # Overlap
 1. 입력을 256×256 타일로 분할 (stride=64)
 2. 각 타일 예측
 3. Overlap averaging
-4. 전체 phase map 재구성
+4. 전체 intensity map 재구성
 
 **출력:**
 - `predictions/predicted_phase_map.npy`
@@ -345,7 +345,7 @@ STRIDE = 64                         # Overlap
 **예상 시간:** 5-10분
 
 **데이터 방향:**
-- Input: Phase Map (.npy) ← Forward의 outputs
+- Input: EM Intensity Map (.npy) ← Forward의 outputs
 - Output: Pillar Pattern (.png) ← Forward의 inputs
 
 **출력:**
@@ -377,14 +377,14 @@ PILLAR_WEIGHT = 2.0                 # Pillar 가중치
 
 ### 7️⃣ `07_inverse_design_notebook.py`
 
-**목적:** 목표 phase map으로부터 pillar pattern 설계
+**목적:** 목표 intensity map으로부터 pillar pattern 설계
 
 **실행 환경:** GPU/CPU  
 **예상 시간:** 5-10분
 
 **주요 설정:**
 ```python
-INPUT_PHASE_PATH = 'data/forward_phase/outputs/sample_0000.npy'
+INPUT_PHASE_PATH = 'data/forward_intensity/outputs/sample_0000.npy'
 CHECKPOINT_PATH = 'checkpoints/inverse_design_basic_tiles/best_model.pth'
 THRESHOLD = 0.5                     # 이진화 임계값 (논문)
 ```
@@ -498,7 +498,7 @@ Input: Pillar Pattern (1, 256, 256)
    [64, 128, 256, 512, 1024]
     ↓ Bottleneck
     ↓ Decoder (5 blocks) + Skip Connections
-Output: Phase Map (1, 256, 256)
+Output: EM Intensity Map (1, 256, 256)
 ```
 
 **특징:**
@@ -514,7 +514,7 @@ Output: Phase Map (1, 256, 256)
 **구조:** Forward와 동일
 
 **차이점:**
-- Input: Phase Map
+- Input: EM Intensity Map
 - Output: Pillar Pattern (확률 맵)
 - 손실 함수: **Weighted BCE** (pillar_weight=2.0)
 - 출력 후처리: **Sigmoid → 0.5 threshold 이진화**
@@ -526,7 +526,7 @@ Output: Phase Map (1, 256, 256)
 ### Forward
 
 ```
-data/forward_phase/
+data/forward_intensity/
 ├─ inputs/
 │  ├─ sample_0000.png              # 4096×4096, grayscale
 │  └─ ...                          # 0: background, 255: pillar
@@ -538,7 +538,7 @@ data/forward_phase/
 ### Forward Tiles
 
 ```
-data/forward_phase_tiles/
+data/forward_intensity_tiles/
 ├─ train/
 │  ├─ inputs/                      # 8,000 × 256×256 PNG
 │  └─ outputs/                     # 8,000 × 256×256 NPY
@@ -603,8 +603,8 @@ STRIDE = 128            # 64 → 128 (overlap 감소)
 ```bash
 # 데이터 크기 확인
 python -c "import cv2, numpy as np; \
-    img = cv2.imread('data/forward_phase/inputs/sample_0000.png', 0); \
-    npy = np.load('data/forward_phase/outputs/sample_0000.npy'); \
+    img = cv2.imread('data/forward_intensity/inputs/sample_0000.png', 0); \
+    npy = np.load('data/forward_intensity/outputs/sample_0000.npy'); \
     print(f'PNG: {img.shape}, NPY: {npy.shape}')"
 
 # 크기가 다르면 MEEP 시뮬레이션 재실행
@@ -650,7 +650,7 @@ jupyter notebook 04_sliding_window_prediction_notebook.py
 jupyter notebook 05_create_inverse_tiles_notebook.py
 jupyter notebook 06_train_inverse_model_notebook.py
 
-# 목표 phase map으로부터 pillar 설계
+# 목표 intensity map으로부터 pillar 설계
 jupyter notebook 07_inverse_design_notebook.py
 ```
 
@@ -660,7 +660,7 @@ jupyter notebook 07_inverse_design_notebook.py
 # 설계된 pillar pattern을 MEEP으로 검증
 # 01_meep_dataset_generation_notebook.py에서
 INPUT_MASK = 'predictions/inverse/pillar_pattern.png'
-# 실행하여 실제 phase map 확인
+# 실행하여 실제 intensity map 확인
 ```
 
 ---

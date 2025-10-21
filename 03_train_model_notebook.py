@@ -1,7 +1,9 @@
 # %% [markdown]
 # # 🎓 U-Net 모델 학습
 #
-# 256×256 타일로 Forward Phase Prediction U-Net 모델을 학습합니다.
+# 256×256 타일로 Forward EM Near-Field Intensity Prediction U-Net 모델을 학습합니다.
+#
+# **Output**: EM Near-Field Intensity (|Ex|² + |Ey|² + |Ez|²)
 #
 # ## 📋 목차
 # 1. 환경 설정 및 임포트
@@ -44,7 +46,7 @@ if torch.cuda.is_available():
 
 # %%
 # ==================== 데이터 파라미터 ====================
-DATA_PATH = 'data/forward_phase_tiles/train'
+DATA_PATH = 'data/forward_intensity_tiles/train'
 BATCH_SIZE = 16                    # 타일 기반이므로 더 큰 배치 사용 가능
 NUM_WORKERS = 4                     # 데이터 로딩 워커
 

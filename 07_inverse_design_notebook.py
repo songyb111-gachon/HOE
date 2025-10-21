@@ -1,7 +1,7 @@
 # %% [markdown]
 # # 🔮 Inverse Design Prediction (Sliding Window)
 #
-# 학습된 Inverse Design 모델로 대형 phase map (4096×4096)으로부터  
+# 학습된 Inverse Design 모델로 대형 intensity map (4096×4096)으로부터  
 # pillar pattern을 설계합니다.
 #
 # **데이터 흐름:**
@@ -43,7 +43,7 @@ print(f"   PyTorch 버전: {torch.__version__}")
 
 # %%
 # ==================== 입력 파라미터 ====================
-INPUT_PHASE_PATH = 'data/forward_phase/outputs/sample_0000.npy'  # 목표 phase map
+INPUT_PHASE_PATH = 'data/forward_phase/outputs/sample_0000.npy'  # 목표 intensity map
 CHECKPOINT_PATH = 'checkpoints/inverse_design_basic_tiles/best_model.pth'  # 학습된 모델
 OUTPUT_DIR = 'predictions/inverse'                               # 출력 디렉토리
 
@@ -81,7 +81,7 @@ print("\n📂 입력 Phase Map 로딩 중...")
 input_phase = np.load(INPUT_PHASE_PATH)
 
 if input_phase is None:
-    raise ValueError(f"Failed to load phase map: {INPUT_PHASE_PATH}")
+    raise ValueError(f"Failed to load intensity map: {INPUT_PHASE_PATH}")
 
 h, w = input_phase.shape
 
@@ -370,7 +370,7 @@ print(f"  Overlap 범위: {unique_counts.min()} ~ {unique_counts.max()}")
 #
 # **다음 단계:**
 # - 설계된 pillar pattern을 MEEP으로 시뮬레이션하여 검증
-# - 다양한 phase map으로 추가 설계 테스트
+# - 다양한 intensity map으로 추가 설계 테스트
 
 # %%
 print("\n" + "="*80)

@@ -244,7 +244,7 @@ def main():
     print(f"\n💾 Saving results...")
     
     # Save predicted phase map
-    phase_path = output_dir / 'predicted_phase_map.npy'
+    phase_path = output_dir / 'predicted_intensity_map.npy'
     np.save(phase_path, prediction.astype(np.float32))
     print(f"  ✓ Phase map saved: {phase_path}")
     

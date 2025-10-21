@@ -38,8 +38,8 @@ print(f"   PyTorch 버전: {torch.__version__}")
 
 # %%
 # ==================== 입력 파라미터 ====================
-INPUT_MASK_PATH = 'data/forward_phase/inputs/sample_0000.png'  # 예측할 이미지
-CHECKPOINT_PATH = 'checkpoints/forward_phase_basic_tiles/best_model.pth'  # 학습된 모델
+INPUT_MASK_PATH = 'data/forward_intensity/inputs/sample_0000.png'  # 예측할 이미지
+CHECKPOINT_PATH = 'checkpoints/forward_intensity_basic_tiles/best_model.pth'  # 학습된 모델
 OUTPUT_DIR = 'predictions'                                      # 출력 디렉토리
 
 # ==================== 모델 파라미터 ====================
@@ -192,7 +192,7 @@ print("\n💾 결과 저장 중...")
 output_path = Path(OUTPUT_DIR)
 
 # 예측 위상맵 저장
-phase_path = output_path / 'predicted_phase_map.npy'
+phase_path = output_path / 'predicted_intensity_map.npy'
 np.save(phase_path, prediction_map.astype(np.float32))
 print(f"   ✓ Phase map: {phase_path}")
 
@@ -270,7 +270,7 @@ print(f"   최대 예측 횟수: {np.max(count_map)}")
 
 print(f"\n출력 파일:")
 print(f"   📁 {output_path}/")
-print(f"      ├── predicted_phase_map.npy")
+print(f"      ├── predicted_intensity_map.npy")
 print(f"      ├── count_map.npy")
 print(f"      └── prediction_visualization.png")
 

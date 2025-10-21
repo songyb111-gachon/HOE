@@ -1,7 +1,9 @@
 # %% [markdown]
-# # 🔬 MEEP Phase Map Dataset Generation
+# # 🔬 MEEP EM Near-Field Intensity Map Dataset Generation
 #
 # 이 노트북은 MEEP 시뮬레이션을 실행하여 학습용 데이터셋을 생성합니다.
+#
+# **Output**: EM Near-Field Intensity Map (|Ex|² + |Ey|² + |Ez|²)
 #
 # ## 📋 목차
 # 1. 환경 설정 및 임포트
@@ -39,7 +41,7 @@ print(f"   MEEP 버전: {mp.__version__ if hasattr(mp, '__version__') else 'unkn
 # %%
 # ==================== 데이터셋 생성 파라미터 ====================
 NUM_SAMPLES = 10              # 생성할 샘플 개수
-OUTPUT_DIR = 'data/forward_phase'  # 출력 디렉토리
+OUTPUT_DIR = 'data/forward_intensity'  # 출력 디렉토리
 SAVE_VISUALIZATIONS = True    # 시각화 저장 여부
 
 # ==================== Random Pillar 파라미터 ====================
@@ -128,8 +130,8 @@ if success:
     print(f"   출력 크기: {sample_info['output_shape']}")
     print(f"   Fill ratio: {sample_info['fill_ratio']:.1f}%")
     print(f"   Pillar 개수: {sample_info['num_pillars']}")
-    print(f"   Phase 평균: {sample_info['phase_mean']:.3f} rad")
-    print(f"   Phase 범위: [{sample_info['phase_min']:.3f}, {sample_info['phase_max']:.3f}] rad")
+    print(f"   Intensity 평균: {sample_info.get('intensity_mean', 0):.3e}")
+    print(f"   Intensity 범위: [{sample_info.get('intensity_min', 0):.3e}, {sample_info.get('intensity_max', 0):.3e}]")
     
     # 시각화 표시
     if SAVE_VISUALIZATIONS:
@@ -187,7 +189,7 @@ output_files = list((output_path / 'outputs').glob('*.npy'))
 
 print(f"📁 생성된 파일:")
 print(f"   입력 마스크: {len(input_files)}개")
-print(f"   출력 위상맵: {len(output_files)}개")
+print(f"   출력 Intensity 맵: {len(output_files)}개")
 
 if SAVE_VISUALIZATIONS:
     vis_files = list((output_path / 'visualizations').glob('*.png'))
@@ -221,24 +223,24 @@ for idx in range(num_to_show):
     output_npy_path = output_path / 'outputs' / f'sample_{idx:04d}.npy'
     
     input_mask = cv2.imread(str(input_path), cv2.IMREAD_GRAYSCALE)
-    phase_map = np.load(output_npy_path)
+    intensity_map = np.load(output_npy_path)
     
     # 입력 마스크
     axes[idx, 0].imshow(input_mask, cmap='gray')
     axes[idx, 0].set_title(f'Sample {idx}: Input Mask\n{input_mask.shape}')
     axes[idx, 0].axis('off')
     
-    # 위상맵
-    im = axes[idx, 1].imshow(phase_map, cmap='hsv', vmin=-np.pi, vmax=np.pi)
-    axes[idx, 1].set_title(f'Sample {idx}: Phase Map\n{phase_map.shape}')
+    # Intensity 맵
+    im = axes[idx, 1].imshow(intensity_map, cmap='hot')
+    axes[idx, 1].set_title(f'Sample {idx}: EM Intensity Map\n{intensity_map.shape}')
     axes[idx, 1].axis('off')
-    plt.colorbar(im, ax=axes[idx, 1], label='Phase (rad)')
+    plt.colorbar(im, ax=axes[idx, 1], label='Intensity')
     
     # 히스토그램
-    axes[idx, 2].hist(phase_map.flatten(), bins=50, alpha=0.7, edgecolor='black')
-    axes[idx, 2].set_xlabel('Phase (rad)')
+    axes[idx, 2].hist(intensity_map.flatten(), bins=50, alpha=0.7, color='red', edgecolor='black')
+    axes[idx, 2].set_xlabel('Intensity')
     axes[idx, 2].set_ylabel('Count')
-    axes[idx, 2].set_title(f'Sample {idx}: Phase Distribution')
+    axes[idx, 2].set_title(f'Sample {idx}: Intensity Distribution')
     axes[idx, 2].grid(True, alpha=0.3)
 
 plt.tight_layout()

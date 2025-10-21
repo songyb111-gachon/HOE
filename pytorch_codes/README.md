@@ -25,12 +25,12 @@
 python meep_phase_simulation.py \
     --mode dataset \
     --num_samples 10 \
-    --output_dir data/forward_phase
+    --output_dir data/forward_intensity
 
 # 2. 타일 추출 (로컬에서 실행 가능, 빠름)
 python create_training_tiles.py \
-    --data_dir data/forward_phase \
-    --output_dir data/forward_phase_tiles \
+    --data_dir data/forward_intensity \
+    --output_dir data/forward_intensity_tiles \
     --tile_size 256 \
     --num_tiles_per_sample 1000 \
     --train_samples 8 \
@@ -38,7 +38,7 @@ python create_training_tiles.py \
 
 # 3. 모델 학습 (GPU, 256×256 타일)
 python forward_main.py \
-    --data_path ./data/forward_phase_tiles/train \
+    --data_path ./data/forward_intensity_tiles/train \
     --mode train \
     --batch_size 16 \
     --num_epochs 100
@@ -125,7 +125,7 @@ pytorch_codes/
 │   ├── __init__.py
 │   ├── unet_blocks.py           # U-Net 기본 블록
 │   ├── inverse_unet.py          # Inverse design U-Net
-│   └── forward_phase_unet.py    # Forward phase prediction U-Net
+│   └── forward_intensity_unet.py    # Forward phase prediction U-Net
 ├── datasets/                     # 데이터 로딩
 │   ├── __init__.py
 │   └── hoe_dataset.py           # Dataset 클래스
@@ -211,25 +211,25 @@ python inverse_main.py \
 
 ```bash
 # 1. 기본: 100개 샘플 생성
-python meep_phase_simulation.py --mode dataset --num_samples 100 --output_dir data/forward_phase
+python meep_phase_simulation.py --mode dataset --num_samples 100 --output_dir data/forward_intensity
 
 # 2. 더 많은 샘플 + 시각화 저장
-python meep_phase_simulation.py --mode dataset --num_samples 1000 --output_dir data/forward_phase --visualize
+python meep_phase_simulation.py --mode dataset --num_samples 1000 --output_dir data/forward_intensity --visualize
 
 # 3. 특정 인덱스부터 계속 생성 (중단 후 재개)
-python meep_phase_simulation.py --mode dataset --num_samples 500 --output_dir data/forward_phase --start_idx 1000
+python meep_phase_simulation.py --mode dataset --num_samples 500 --output_dir data/forward_intensity --start_idx 1000
 ```
 
 **생성된 데이터 구조:**
 
 ```
-data/forward_phase/
+data/forward_intensity/
 ├── inputs/                       # 랜덤 필러 바이너리 마스크
 │   ├── sample_0000.png          # 0-255 grayscale PNG
 │   ├── sample_0001.png
 │   └── ...
 ├── outputs/                      # MEEP 시뮬레이션 위상맵
-│   ├── sample_0000.npy          # float32 phase map (radians)
+│   ├── sample_0000.npy          # float32 intensity map (radians)
 │   ├── sample_0001.npy
 │   └── ...
 ├── visualizations/               # (--visualize 옵션 사용 시)
@@ -256,12 +256,12 @@ data/forward_phase/
 
 ```bash
 # 1. 대형 샘플 10개 생성 (MEEP 서버)
-python meep_phase_simulation.py --mode dataset --num_samples 10 --output_dir data/forward_phase
+python meep_phase_simulation.py --mode dataset --num_samples 10 --output_dir data/forward_intensity
 
 # 2. 타일 추출 (로컬에서 실행 가능)
 python create_training_tiles.py \
-    --data_dir data/forward_phase \
-    --output_dir data/forward_phase_tiles \
+    --data_dir data/forward_intensity \
+    --output_dir data/forward_intensity_tiles \
     --tile_size 256 \
     --num_tiles_per_sample 1000 \
     --train_samples 8 \
@@ -270,7 +270,7 @@ python create_training_tiles.py \
 
 **생성된 타일 구조:**
 ```
-data/forward_phase_tiles/
+data/forward_intensity_tiles/
 ├── train/
 │   ├── inputs/    # 8,000 tiles (256×256 PNG)
 │   └── outputs/   # 8,000 tiles (256×256 NPY)
@@ -287,7 +287,7 @@ data/forward_phase_tiles/
 ```bash
 # 기본 모델 (256×256 타일)
 python forward_main.py \
-    --data_path ./data/forward_phase_tiles/train \
+    --data_path ./data/forward_intensity_tiles/train \
     --mode train \
     --model_type basic \
     --batch_size 16 \
@@ -296,7 +296,7 @@ python forward_main.py \
 
 # Multi-scale 모델 (더 정확)
 python forward_main.py \
-    --data_path ./data/forward_phase_tiles/train \
+    --data_path ./data/forward_intensity_tiles/train \
     --mode train \
     --model_type multiscale \
     --layer_num 5 \
@@ -305,7 +305,7 @@ python forward_main.py \
 
 # 원본 U-Net 스타일 (BatchNorm 없이)
 python forward_main.py \
-    --data_path ./data/forward_phase_tiles/train \
+    --data_path ./data/forward_intensity_tiles/train \
     --mode train \
     --no_batchnorm
 ```
@@ -320,7 +320,7 @@ python forward_main.py \
 
 ```bash
 python forward_main.py \
-    --data_path ./data/forward_phase \
+    --data_path ./data/forward_intensity \
     --mode test \
     --checkpoint ./checkpoints/your_experiment/best_model.pth
 ```
@@ -384,7 +384,7 @@ tensorboard --logdir ./logs
   - 1: Pillar (n=1.54)
   - 예: `random_pillar_slice.png` (4096×4096)
 
-- **Output**: Numpy array (phase map)
+- **Output**: Numpy array (intensity map)
   - `.npy` 파일 또는 `.txt` 파일
   - 값 범위: [-π, π] (radians)
   - MEEP 시뮬레이션 결과와 동일한 형식
@@ -407,7 +407,7 @@ tensorboard --logdir ./logs
 
 1. **Basic Model** (권장):
    - 1개 encoder-decoder
-   - 1-channel output (phase map)
+   - 1-channel output (intensity map)
    - 빠르고 정확
    
 2. **Multi-Scale Model**:
@@ -556,7 +556,7 @@ torch.cuda.amp.autocast()
 - [ ] Mixed Precision Training (AMP)
 - [ ] Learning rate scheduler 통합
 - [ ] Early stopping
-- [ ] Data augmentation for phase maps
+- [ ] Data augmentation for intensity maps
 - [ ] Uncertainty estimation
 - [ ] Transfer learning from pretrained weights
 

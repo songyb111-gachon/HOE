@@ -4,7 +4,7 @@
 # 256×256 타일로 Inverse Design U-Net 모델을 학습합니다.
 #
 # **모델:**
-# - Input: Phase Map (목표 위상 맵)
+# - Input: EM Intensity Map (목표 위상 맵)
 # - Output: Pillar Pattern (그것을 만들어낼 필러 패턴)
 #
 # ## 📋 목차
@@ -108,7 +108,7 @@ print(f"   검증 배치: {len(val_loader)}")
 # 샘플 데이터 확인
 sample_batch = next(iter(train_loader))
 print(f"\n📊 샘플 배치 크기:")
-print(f"   Input (Phase Map): {sample_batch['image'].shape}")  # [B, 1, H, W]
+print(f"   Input (EM Intensity Map): {sample_batch['image'].shape}")  # [B, 1, H, W]
 print(f"   Target (Pillar): {sample_batch['target'].shape}")    # [B, 1, H, W]
 print(f"   Input range: [{sample_batch['image'].min():.2f}, {sample_batch['image'].max():.2f}]")
 print(f"   Target range: [{sample_batch['target'].min():.2f}, {sample_batch['target'].max():.2f}]")
@@ -347,7 +347,7 @@ for i in range(num_samples):
     # Input: Phase map
     input_img = inputs[i, 0].cpu().numpy()
     axes[i, 0].imshow(input_img, cmap='twilight')
-    axes[i, 0].set_title(f'Input: Phase Map\nRange: [{input_img.min():.2f}, {input_img.max():.2f}]')
+    axes[i, 0].set_title(f'Input: EM Intensity Map\nRange: [{input_img.min():.2f}, {input_img.max():.2f}]')
     axes[i, 0].axis('off')
     
     # Target: Pillar pattern

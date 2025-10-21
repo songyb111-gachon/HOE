@@ -147,9 +147,10 @@ class InverseDesignDataset(BaseHOEDataset):
 
 
 class ForwardPhaseDataset(BaseHOEDataset):
-    """Dataset for forward phase prediction
+    """Dataset for forward EM intensity prediction
     
-    Predicts phase map from random pillar pattern.
+    Predicts EM near-field intensity map from random pillar pattern.
+    Output: |Ex|² + |Ey|² + |Ez|²
     
     Data structure:
         data_path/
@@ -158,7 +159,7 @@ class ForwardPhaseDataset(BaseHOEDataset):
                 sample_0001.png
                 ...
             outputs/
-                sample_0000.npy  (phase map, float32, radians)
+                sample_0000.npy  (EM intensity map, float32)
                 sample_0001.npy
                 ...
     """
@@ -439,4 +440,8 @@ if __name__ == "__main__":
     print("       batch_size=8)")
     
     print("\n✓ Dataset module ready!")
+
+
+# Alias for clarity (ForwardPhaseDataset is now for intensity)
+ForwardIntensityDataset = ForwardPhaseDataset
 
