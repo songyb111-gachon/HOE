@@ -45,14 +45,12 @@ OUTPUT_DIR = 'data/forward_intensity'  # 출력 디렉토리
 SAVE_VISUALIZATIONS = True    # 시각화 저장 여부
 
 # ==================== Random Pillar 파라미터 ====================
-# ⚠️ 주의: 해상도 1.0 유지 시 도메인 크기를 작게 시작! ⚠️
-# 테스트: 512×512 → 성공 후 → 1024×1024 → 최종 2048×2048 or 4096×4096
+# 최종 설정: 4096×4096 nm (Full size)
 PILLAR_PARAMS = {
-    'domain_size': (1024, 1024),        # 시뮬레이션 영역 (nm) - 작게 시작!
-                                        # 512: 테스트용 (빠름)
-                                        # 1024: 중간 (권장 시작점)
-                                        # 2048: 큼 (오래 걸림)
-                                        # 4096: 매우 큼 (수 시간)
+    'domain_size': (4096, 4096),        # 시뮬레이션 영역 (nm) - Full size!
+                                        # 4096×4096: 완전한 크기
+                                        # Resolution 1.0: 4096×4096 pixels
+                                        # 예상 Block 수: ~4.2M (느릴 수 있음)
     'pillar_radius': 45.0,              # 기둥 반지름 (nm)
     'min_edge_distance': 5.0,           # 최소 edge-to-edge 거리 (nm)
     'initial_density': 40.0,            # 초기 밀도 (pillars/μm²)
