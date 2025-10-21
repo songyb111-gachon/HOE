@@ -43,11 +43,12 @@ OUTPUT_DIR = 'data/forward_phase'  # 출력 디렉토리
 SAVE_VISUALIZATIONS = True    # 시각화 저장 여부
 
 # ==================== Random Pillar 파라미터 ====================
+# random_pillar_generator.py와 동일한 파라미터 사용
 PILLAR_PARAMS = {
     'domain_size': (4096, 4096),        # 시뮬레이션 영역 (nm)
-    'pillar_radius': 10.0,              # 기둥 반지름 (nm, 샘플마다 8-12로 랜덤)
+    'pillar_radius': 45.0,              # 기둥 반지름 (nm)
     'min_edge_distance': 5.0,           # 최소 edge-to-edge 거리 (nm)
-    'initial_density': 100.0,           # 초기 밀도 (pillars/μm², 샘플마다 80-120으로 랜덤)
+    'initial_density': 40.0,            # 초기 밀도 (pillars/μm²) → 약 670개 기둥
     'max_attempts': 10000
 }
 

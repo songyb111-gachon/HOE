@@ -1334,12 +1334,12 @@ def generate_training_dataset(num_samples=100,
     for i in range(num_samples):
         sample_idx = start_idx + i
         
-        # Vary pillar radius for diversity (8-12 nm)
+        # Use fixed pillar parameters (no randomization)
+        # 고정된 파라미터 사용 (샘플마다 동일한 평균 특성 유지)
         current_pillar_params = pillar_params.copy()
-        current_pillar_params['pillar_radius'] = np.random.uniform(8.0, 12.0)
-        
-        # Vary density slightly (80-120 pillars/μm²)
-        current_pillar_params['initial_density'] = np.random.uniform(80.0, 120.0)
+        # 다양성을 원하면 아래 주석을 해제하세요:
+        # current_pillar_params['pillar_radius'] = np.random.uniform(40.0, 50.0)
+        # current_pillar_params['initial_density'] = np.random.uniform(35.0, 45.0)
         
         # Generate sample
         success, sample_info = generate_single_training_sample(
