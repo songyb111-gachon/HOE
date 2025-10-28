@@ -66,6 +66,8 @@ class Trainer:
         self.val_losses = []
         self.train_mse = []
         self.val_mse = []
+        self.train_psnr = []
+        self.val_psnr = []
         
         print(f"\n{'='*80}")
         print(f"Trainer Initialized")
@@ -143,7 +145,11 @@ class Trainer:
         
         avg_loss = epoch_loss / len(self.train_loader)
         avg_mse = epoch_mse / len(self.train_loader)
-        return avg_loss, avg_mse
+        
+        # Calculate PSNR from MSE (assuming data range [0, 1])
+        avg_psnr = 10 * np.log10(1.0 / (avg_mse + 1e-10))
+        
+        return avg_loss, avg_mse, avg_psnr
     
     def validate(self):
         """Validate model"""
@@ -200,7 +206,11 @@ class Trainer:
         
         avg_loss = epoch_loss / len(self.val_loader)
         avg_mse = epoch_mse / len(self.val_loader)
-        return avg_loss, avg_mse
+        
+        # Calculate PSNR from MSE (assuming data range [0, 1])
+        avg_psnr = 10 * np.log10(1.0 / (avg_mse + 1e-10))
+        
+        return avg_loss, avg_mse, avg_psnr
     
     def save_checkpoint(self, filename='checkpoint.pth', is_best=False):
         """Save checkpoint"""
@@ -212,6 +222,8 @@ class Trainer:
             'val_losses': self.val_losses,
             'train_mse': self.train_mse,
             'val_mse': self.val_mse,
+            'train_psnr': self.train_psnr,
+            'val_psnr': self.val_psnr,
             'best_val_loss': self.best_val_loss,
         }
         
@@ -240,6 +252,8 @@ class Trainer:
         self.val_losses = checkpoint['val_losses']
         self.train_mse = checkpoint.get('train_mse', [])
         self.val_mse = checkpoint.get('val_mse', [])
+        self.train_psnr = checkpoint.get('train_psnr', [])
+        self.val_psnr = checkpoint.get('val_psnr', [])
         self.best_val_loss = checkpoint['best_val_loss']
         
         print(f"  ✓ Loaded checkpoint from epoch {self.current_epoch}")
@@ -264,27 +278,31 @@ class Trainer:
             self.current_epoch = epoch
             
             # Train
-            train_loss, train_mse = self.train_epoch()
+            train_loss, train_mse, train_psnr = self.train_epoch()
             self.train_losses.append(train_loss)
             self.train_mse.append(train_mse)
+            self.train_psnr.append(train_psnr)
             
             # Validate
-            val_loss, val_mse = self.validate()
+            val_loss, val_mse, val_psnr = self.validate()
             self.val_losses.append(val_loss)
             self.val_mse.append(val_mse)
+            self.val_psnr.append(val_psnr)
             
             # Log to TensorBoard
             self.writer.add_scalar('Loss/train', train_loss, epoch)
             self.writer.add_scalar('Loss/val', val_loss, epoch)
             self.writer.add_scalar('MSE/train', train_mse, epoch)
             self.writer.add_scalar('MSE/val', val_mse, epoch)
+            self.writer.add_scalar('PSNR/train', train_psnr, epoch)
+            self.writer.add_scalar('PSNR/val', val_psnr, epoch)
             self.writer.add_scalar('Learning_rate', 
                                   self.optimizer.param_groups[0]['lr'], epoch)
             
             # Print epoch summary
             print(f"\nEpoch {epoch+1}/{num_epochs}")
-            print(f"  • Train loss: {train_loss:.6f}  |  Train MSE: {train_mse:.6f}")
-            print(f"  • Val loss: {val_loss:.6f}  |  Val MSE: {val_mse:.6f}")
+            print(f"  • Train loss: {train_loss:.6f}  |  Train MSE: {train_mse:.6f}  |  Train PSNR: {train_psnr:.2f} dB")
+            print(f"  • Val loss: {val_loss:.6f}  |  Val MSE: {val_mse:.6f}  |  Val PSNR: {val_psnr:.2f} dB")
             
             # Save checkpoint
             if (epoch + 1) % save_freq == 0:
@@ -312,6 +330,8 @@ class Trainer:
             'val_losses': self.val_losses,
             'train_mse': self.train_mse,
             'val_mse': self.val_mse,
+            'train_psnr': self.train_psnr,
+            'val_psnr': self.val_psnr,
             'best_val_loss': self.best_val_loss,
         }
         

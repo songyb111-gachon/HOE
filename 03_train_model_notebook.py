@@ -212,6 +212,8 @@ history = {
     'val_loss': trainer.val_losses,
     'train_mse': trainer.train_mse,
     'val_mse': trainer.val_mse,
+    'train_psnr': trainer.train_psnr,
+    'val_psnr': trainer.val_psnr,
     'learning_rate': [optimizer.param_groups[0]['lr']] * NUM_EPOCHS  # 간단한 구현
 }
 
@@ -223,7 +225,7 @@ print("="*80)
 # ## 7. 학습 곡선 시각화
 
 # %%
-fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
 # Loss 곡선
 axes[0, 0].plot(history['train_loss'], label='Train Loss', linewidth=2)
@@ -242,6 +244,15 @@ axes[0, 1].set_ylabel('MSE')
 axes[0, 1].set_title('Training and Validation MSE')
 axes[0, 1].legend()
 axes[0, 1].grid(True, alpha=0.3)
+
+# PSNR 곡선
+axes[0, 2].plot(history['train_psnr'], label='Train PSNR', linewidth=2, color='purple')
+axes[0, 2].plot(history['val_psnr'], label='Val PSNR', linewidth=2, color='magenta')
+axes[0, 2].set_xlabel('Epoch')
+axes[0, 2].set_ylabel('PSNR (dB)')
+axes[0, 2].set_title('Training and Validation PSNR')
+axes[0, 2].legend()
+axes[0, 2].grid(True, alpha=0.3)
 
 # Learning rate 곡선
 axes[1, 0].plot(history['learning_rate'], linewidth=2, color='green')
@@ -266,11 +277,19 @@ MSE:
   • 최종 Val MSE: {history['val_mse'][-1]:.6f}
   • 최고 Val MSE: {min(history['val_mse']):.6f}
 
+PSNR:
+  • 최종 Train PSNR: {history['train_psnr'][-1]:.2f} dB
+  • 최종 Val PSNR: {history['val_psnr'][-1]:.2f} dB
+  • 최고 Val PSNR: {max(history['val_psnr']):.2f} dB
+
 학습률:
   • 최종 LR: {history['learning_rate'][-1]:.2e}
 """
-axes[1, 1].text(0.1, 0.5, summary_text, fontsize=12, family='monospace',
+axes[1, 1].text(0.1, 0.5, summary_text, fontsize=11, family='monospace',
                 verticalalignment='center')
+
+# 빈 공간
+axes[1, 2].axis('off')
 
 plt.tight_layout()
 plt.show()
