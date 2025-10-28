@@ -46,6 +46,11 @@ class BaseHOEDataset(Dataset):
         files = os.listdir(directory)
         return [f[:-4] for f in files if f.endswith('.png')]
     
+    def _list_npy_files(self, directory):
+        """List all NPY files in directory"""
+        files = os.listdir(directory)
+        return [f[:-4] for f in files if f.endswith('.npy')]
+    
     def __len__(self):
         return len(self.image_names)
 
@@ -56,20 +61,21 @@ class InverseDesignDataset(BaseHOEDataset):
     Data structure:
         data_path/
             inputs/
-                image1.png
-                image2.png
+                image1.png (or .npy for phase maps)
+                image2.png (or .npy)
                 ...
             outputs/
-                image1.txt (or .png)
+                image1.txt (or .png for pillar patterns)
                 image2.txt (or .png)
                 ...
     """
     
-    def __init__(self, data_path, output_extension='txt', 
+    def __init__(self, data_path, input_extension='png', output_extension='txt', 
                  output_type='R', transform=None, normalize=True):
         """
         Args:
             data_path: Path to dataset directory
+            input_extension: 'png' or 'npy'
             output_extension: 'txt' or 'png'
             output_type: 'R' for regression, 'BC' for binary classification, 
                         'MC' for multi-class classification
@@ -78,13 +84,17 @@ class InverseDesignDataset(BaseHOEDataset):
         """
         super().__init__(data_path, transform, normalize)
         
+        self.input_extension = input_extension
         self.output_extension = output_extension
         self.output_type = output_type
         
         # List all input images
         input_dir = self.data_path / 'inputs'
         if input_dir.exists():
-            self.image_names = self._list_png_files(input_dir)
+            if input_extension == 'npy':
+                self.image_names = self._list_npy_files(input_dir)
+            else:
+                self.image_names = self._list_png_files(input_dir)
         else:
             raise ValueError(f"Input directory not found: {input_dir}")
     
@@ -111,15 +121,26 @@ class InverseDesignDataset(BaseHOEDataset):
         """Get one sample"""
         image_name = self.image_names[idx]
         
-        # Load input image
-        input_path = self.data_path / 'inputs' / f'{image_name}.png'
-        image = cv2.imread(str(input_path))
+        # Load input
+        input_path = self.data_path / 'inputs' / f'{image_name}.{self.input_extension}'
         
-        if image is None:
-            raise ValueError(f"Failed to load image: {input_path}")
+        if self.input_extension == 'npy':
+            # Load NPY file (e.g., phase map)
+            image = np.load(input_path).astype(np.float32)
+            
+            # Ensure 2D -> 3D (H, W) -> (H, W, 1)
+            if image.ndim == 2:
+                image = np.expand_dims(image, axis=-1)
+        else:
+            # Load PNG file
+            image = cv2.imread(str(input_path))
+            
+            if image is None:
+                raise ValueError(f"Failed to load image: {input_path}")
         
         # Normalize
-        image = self._normalize_image(image)
+        if self.normalize and self.input_extension == 'png':
+            image = self._normalize_image(image)
         
         # Load output
         output = self._read_output(image_name)
@@ -133,6 +154,10 @@ class InverseDesignDataset(BaseHOEDataset):
             output = torch.from_numpy(output).unsqueeze(0).float()
         else:
             output = torch.from_numpy(output).permute(2, 0, 1).float()
+        
+        # Normalize output to [0, 1] if it's a pillar pattern (0-255)
+        if self.output_extension == 'png':
+            output = output / 255.0
         
         # Apply transforms
         if self.transform:
@@ -369,7 +394,13 @@ def create_dataloaders(dataset_path, dataset_type='inverse',
     """
     # Create full dataset
     if dataset_type == 'inverse':
-        full_dataset = InverseDesignDataset(dataset_path, **dataset_kwargs)
+        # Inverse: phase map (.npy) -> pillar pattern (.png)
+        full_dataset = InverseDesignDataset(
+            dataset_path, 
+            input_extension='npy',
+            output_extension='png',
+            **dataset_kwargs
+        )
     elif dataset_type == 'forward_phase':
         full_dataset = ForwardPhaseDataset(dataset_path, **dataset_kwargs)
     elif dataset_type == 'metaline':

@@ -31,9 +31,9 @@ import sys
 # PyTorch 코드 경로 추가
 sys.path.append('pytorch_codes')
 
-from models import InverseDesignUNet
+from models import InverseUNet
 from datasets import InverseDesignDataset, create_dataloaders
-from utils import WeightedBCELoss, Trainer
+from utils import Trainer
 
 # GPU 확인
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -90,20 +90,41 @@ print(f"   Device: {device}")
 # %%
 print("📂 데이터 로딩 중...")
 
-# 데이터 로더 생성
-train_loader, val_loader, test_loader = create_dataloaders(
-    dataset_path=DATA_PATH,
-    dataset_type='inverse',
-    batch_size=BATCH_SIZE,
-    num_workers=NUM_WORKERS,
-    train_split=0.8,
-    val_split=0.2,
+from torch.utils.data import DataLoader
+
+# 데이터셋 생성 (이미 train/val로 나뉘어져 있음)
+train_dataset = InverseDesignDataset(
+    data_path='data/inverse_tiles/train',
+    input_extension='npy',
+    output_extension='png',
     normalize=False
 )
 
+val_dataset = InverseDesignDataset(
+    data_path='data/inverse_tiles/val',
+    input_extension='npy',
+    output_extension='png',
+    normalize=False
+)
+
+# 데이터 로더 생성
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=True,
+    num_workers=NUM_WORKERS
+)
+
+val_loader = DataLoader(
+    val_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=False,
+    num_workers=NUM_WORKERS
+)
+
 print("\n✅ 데이터 로더 생성 완료!")
-print(f"   훈련 배치: {len(train_loader)}")
-print(f"   검증 배치: {len(val_loader)}")
+print(f"   훈련 샘플: {len(train_dataset)} ({len(train_loader)} 배치)")
+print(f"   검증 샘플: {len(val_dataset)} ({len(val_loader)} 배치)")
 
 # 샘플 데이터 확인
 sample_batch = next(iter(train_loader))
@@ -120,21 +141,25 @@ print(f"   Target range: [{sample_batch['target'].min():.2f}, {sample_batch['tar
 print("🔨 모델 생성 중...")
 
 # Inverse Design U-Net 모델
-model = InverseDesignUNet(
+model = InverseUNet(
     in_channels=1,
-    out_channels=1,
+    out_channels=[1],
     layer_num=LAYER_NUM,
     base_features=BASE_FEATURES,
     dropout_rate=DROPOUT_RATE,
+    output_activations=['linear'],  # BCEWithLogitsLoss를 위해 linear 사용
     use_batchnorm=USE_BATCHNORM
 ).to(device)
 
 print(f"\n✅ 모델 생성 완료!")
-print(f"   모델: InverseDesignUNet")
+print(f"   모델: InverseUNet")
 print(f"   레이어 수: {LAYER_NUM}")
 print(f"   기본 features: {BASE_FEATURES}")
 print(f"   Dropout: {DROPOUT_RATE}")
 print(f"   BatchNorm: {USE_BATCHNORM}")
+
+# 모델 요약 출력
+model.get_model_summary()
 
 # 모델 파라미터 수 계산
 total_params = sum(p.numel() for p in model.parameters())
@@ -149,10 +174,12 @@ print(f"   학습 가능 파라미터: {trainable_params:,}")
 # %%
 # 손실 함수
 if LOSS_TYPE == 'weighted_bce':
-    criterion = WeightedBCELoss(pillar_weight=PILLAR_WEIGHT).to(device)
+    # pos_weight: pillar 클래스(1)에 더 높은 가중치 부여
+    pos_weight = torch.tensor([PILLAR_WEIGHT]).to(device)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     print(f"✅ 손실 함수: Weighted BCE Loss (pillar_weight={PILLAR_WEIGHT})")
 else:
-    criterion = nn.BCEWithLogitsLoss().to(device)
+    criterion = nn.BCEWithLogitsLoss()
     print(f"✅ 손실 함수: BCE Loss")
 
 # 옵티마이저
@@ -177,112 +204,39 @@ print("\n" + "="*80)
 print("🚀 학습 시작!")
 print("="*80)
 
-# 체크포인트 디렉토리
-checkpoint_dir = Path(CHECKPOINT_DIR) / EXPERIMENT_NAME
-checkpoint_dir.mkdir(parents=True, exist_ok=True)
+# Trainer를 사용한 학습
+trainer = Trainer(
+    model=model,
+    train_loader=train_loader,
+    val_loader=val_loader,
+    criterion=criterion,
+    optimizer=optimizer,
+    device=device,
+    checkpoint_dir=CHECKPOINT_DIR,
+    log_dir=LOG_DIR,
+    experiment_name=EXPERIMENT_NAME
+)
 
-# 학습 히스토리
+# 학습 실행
+trainer.train(
+    num_epochs=NUM_EPOCHS,
+    save_freq=SAVE_FREQ
+)
+
+# 학습 히스토리 구성
 history = {
-    'train_loss': [],
-    'val_loss': [],
-    'learning_rate': []
+    'train_loss': trainer.train_losses,
+    'val_loss': trainer.val_losses,
+    'train_mse': trainer.train_mse,
+    'val_mse': trainer.val_mse,
+    'learning_rate': [optimizer.param_groups[0]['lr']] * NUM_EPOCHS
 }
-
-best_val_loss = float('inf')
-
-# %% [markdown]
-# ### 학습 루프
-
-# %%
-for epoch in range(NUM_EPOCHS):
-    print(f"\n{'='*80}")
-    print(f"Epoch {epoch+1}/{NUM_EPOCHS}")
-    print(f"{'='*80}")
-    
-    # ==================== 훈련 ====================
-    model.train()
-    train_loss = 0.0
-    
-    for batch_idx, batch in enumerate(train_loader):
-        # 데이터 이동
-        inputs = batch['image'].to(device)      # Phase map
-        targets = batch['target'].to(device)    # Pillar pattern
-        
-        # Forward
-        optimizer.zero_grad()
-        outputs = model(inputs)
-        
-        # Loss
-        loss = criterion(outputs, targets)
-        
-        # Backward
-        loss.backward()
-        optimizer.step()
-        
-        train_loss += loss.item()
-        
-        # 진행상황 출력
-        if (batch_idx + 1) % 50 == 0:
-            print(f"  [{batch_idx+1}/{len(train_loader)}] Loss: {loss.item():.4f}")
-    
-    avg_train_loss = train_loss / len(train_loader)
-    history['train_loss'].append(avg_train_loss)
-    
-    # ==================== 검증 ====================
-    model.eval()
-    val_loss = 0.0
-    
-    with torch.no_grad():
-        for batch in val_loader:
-            inputs = batch['image'].to(device)
-            targets = batch['target'].to(device)
-            
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-            
-            val_loss += loss.item()
-    
-    avg_val_loss = val_loss / len(val_loader)
-    history['val_loss'].append(avg_val_loss)
-    history['learning_rate'].append(optimizer.param_groups[0]['lr'])
-    
-    # Learning rate scheduler
-    scheduler.step(avg_val_loss)
-    
-    # 결과 출력
-    print(f"\n  📊 Epoch {epoch+1} 결과:")
-    print(f"     Train Loss: {avg_train_loss:.6f}")
-    print(f"     Val Loss:   {avg_val_loss:.6f}")
-    print(f"     LR: {optimizer.param_groups[0]['lr']:.6f}")
-    
-    # 최고 성능 모델 저장
-    if avg_val_loss < best_val_loss:
-        best_val_loss = avg_val_loss
-        torch.save({
-            'epoch': epoch + 1,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'val_loss': avg_val_loss,
-            'train_loss': avg_train_loss,
-        }, checkpoint_dir / 'best_model.pth')
-        print(f"     ✅ 최고 성능 모델 저장! (Val Loss: {avg_val_loss:.6f})")
-    
-    # 주기적 체크포인트 저장
-    if (epoch + 1) % SAVE_FREQ == 0:
-        torch.save({
-            'epoch': epoch + 1,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'val_loss': avg_val_loss,
-            'train_loss': avg_train_loss,
-        }, checkpoint_dir / f'checkpoint_epoch_{epoch+1}.pth')
-        print(f"     💾 체크포인트 저장: epoch_{epoch+1}")
 
 print("\n" + "="*80)
 print("✅ 학습 완료!")
 print("="*80)
-print(f"   최고 검증 손실: {best_val_loss:.6f}")
-print(f"   모델 저장 위치: {checkpoint_dir}")
+print(f"   최고 검증 손실: {trainer.best_val_loss:.6f}")
+print(f"   모델 저장 위치: {trainer.checkpoint_dir}")
 
 # %% [markdown]
 # ## 7. 학습 곡선 시각화
@@ -308,10 +262,10 @@ axes[1].set_yscale('log')
 axes[1].grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig(checkpoint_dir / 'training_curves.png', dpi=150, bbox_inches='tight')
+plt.savefig(trainer.checkpoint_dir / 'training_curves.png', dpi=150, bbox_inches='tight')
 plt.show()
 
-print(f"\n✅ 학습 곡선 저장: {checkpoint_dir / 'training_curves.png'}")
+print(f"\n✅ 학습 곡선 저장: {trainer.checkpoint_dir / 'training_curves.png'}")
 
 # %% [markdown]
 # ## 8. 검증 세트에서 예측 시각화
@@ -322,7 +276,7 @@ print("📊 검증 세트 예측 시각화")
 print("="*80)
 
 # 최고 성능 모델 로드
-checkpoint = torch.load(checkpoint_dir / 'best_model.pth')
+checkpoint = torch.load(trainer.checkpoint_dir / 'best_model.pth')
 model.load_state_dict(checkpoint['model_state_dict'])
 model.eval()
 
@@ -369,10 +323,10 @@ for i in range(num_samples):
     axes[i, 3].axis('off')
 
 plt.tight_layout()
-plt.savefig(checkpoint_dir / 'validation_predictions.png', dpi=150, bbox_inches='tight')
+plt.savefig(trainer.checkpoint_dir / 'validation_predictions.png', dpi=150, bbox_inches='tight')
 plt.show()
 
-print(f"✅ 검증 예측 저장: {checkpoint_dir / 'validation_predictions.png'}")
+print(f"✅ 검증 예측 저장: {trainer.checkpoint_dir / 'validation_predictions.png'}")
 
 # %% [markdown]
 # ## 9. 완료!
@@ -387,8 +341,8 @@ print("\n" + "="*80)
 print("🎉 Inverse Design 모델 학습 완료!")
 print("="*80)
 print(f"\n📂 저장된 파일:")
-print(f"   {checkpoint_dir / 'best_model.pth'}")
-print(f"   {checkpoint_dir / 'training_curves.png'}")
-print(f"   {checkpoint_dir / 'validation_predictions.png'}")
+print(f"   {trainer.checkpoint_dir / 'best_model.pth'}")
+print(f"   {trainer.checkpoint_dir / 'training_curves.png'}")
+print(f"   {trainer.checkpoint_dir / 'validation_predictions.png'}")
 print(f"\n🚀 다음 단계: 07_inverse_design_notebook.py 실행!")
 

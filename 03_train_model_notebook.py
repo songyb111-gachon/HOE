@@ -190,6 +190,8 @@ print("="*80)
 # Trainer 생성
 trainer = Trainer(
     model=model,
+    train_loader=train_loader,
+    val_loader=val_loader,
     criterion=criterion,
     optimizer=optimizer,
     device=device,
@@ -199,13 +201,19 @@ trainer = Trainer(
 )
 
 # 학습 실행
-history = trainer.train(
-    train_loader=train_loader,
-    val_loader=val_loader,
+trainer.train(
     num_epochs=NUM_EPOCHS,
-    scheduler=scheduler,
     save_freq=SAVE_FREQ
 )
+
+# 학습 히스토리 구성
+history = {
+    'train_loss': trainer.train_losses,
+    'val_loss': trainer.val_losses,
+    'train_mse': trainer.train_mse,
+    'val_mse': trainer.val_mse,
+    'learning_rate': [optimizer.param_groups[0]['lr']] * NUM_EPOCHS  # 간단한 구현
+}
 
 print("\n" + "="*80)
 print("🎉 학습 완료!")
@@ -215,24 +223,54 @@ print("="*80)
 # ## 7. 학습 곡선 시각화
 
 # %%
-fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+fig, axes = plt.subplots(2, 2, figsize=(15, 10))
 
 # Loss 곡선
-axes[0].plot(history['train_loss'], label='Train Loss', linewidth=2)
-axes[0].plot(history['val_loss'], label='Val Loss', linewidth=2)
-axes[0].set_xlabel('Epoch')
-axes[0].set_ylabel('Loss')
-axes[0].set_title('Training and Validation Loss')
-axes[0].legend()
-axes[0].grid(True, alpha=0.3)
+axes[0, 0].plot(history['train_loss'], label='Train Loss', linewidth=2)
+axes[0, 0].plot(history['val_loss'], label='Val Loss', linewidth=2)
+axes[0, 0].set_xlabel('Epoch')
+axes[0, 0].set_ylabel('Loss')
+axes[0, 0].set_title('Training and Validation Loss')
+axes[0, 0].legend()
+axes[0, 0].grid(True, alpha=0.3)
+
+# MSE 곡선
+axes[0, 1].plot(history['train_mse'], label='Train MSE', linewidth=2, color='orange')
+axes[0, 1].plot(history['val_mse'], label='Val MSE', linewidth=2, color='red')
+axes[0, 1].set_xlabel('Epoch')
+axes[0, 1].set_ylabel('MSE')
+axes[0, 1].set_title('Training and Validation MSE')
+axes[0, 1].legend()
+axes[0, 1].grid(True, alpha=0.3)
 
 # Learning rate 곡선
-axes[1].plot(history['learning_rate'], linewidth=2, color='green')
-axes[1].set_xlabel('Epoch')
-axes[1].set_ylabel('Learning Rate')
-axes[1].set_title('Learning Rate Schedule')
-axes[1].grid(True, alpha=0.3)
-axes[1].set_yscale('log')
+axes[1, 0].plot(history['learning_rate'], linewidth=2, color='green')
+axes[1, 0].set_xlabel('Epoch')
+axes[1, 0].set_ylabel('Learning Rate')
+axes[1, 0].set_title('Learning Rate Schedule')
+axes[1, 0].grid(True, alpha=0.3)
+axes[1, 0].set_yscale('log')
+
+# 최종 메트릭 요약
+axes[1, 1].axis('off')
+summary_text = f"""
+📊 학습 최종 결과
+
+Loss:
+  • 최종 Train Loss: {history['train_loss'][-1]:.6f}
+  • 최종 Val Loss: {history['val_loss'][-1]:.6f}
+  • 최고 Val Loss: {trainer.best_val_loss:.6f}
+
+MSE:
+  • 최종 Train MSE: {history['train_mse'][-1]:.6f}
+  • 최종 Val MSE: {history['val_mse'][-1]:.6f}
+  • 최고 Val MSE: {min(history['val_mse']):.6f}
+
+학습률:
+  • 최종 LR: {history['learning_rate'][-1]:.2e}
+"""
+axes[1, 1].text(0.1, 0.5, summary_text, fontsize=12, family='monospace',
+                verticalalignment='center')
 
 plt.tight_layout()
 plt.show()

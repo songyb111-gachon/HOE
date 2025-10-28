@@ -64,6 +64,8 @@ class Trainer:
         self.best_val_loss = float('inf')
         self.train_losses = []
         self.val_losses = []
+        self.train_mse = []
+        self.val_mse = []
         
         print(f"\n{'='*80}")
         print(f"Trainer Initialized")
@@ -80,6 +82,7 @@ class Trainer:
         """Train for one epoch"""
         self.model.train()
         epoch_loss = 0.0
+        epoch_mse = 0.0
         
         pbar = tqdm(self.train_loader, desc=f'Epoch {self.current_epoch+1} [Train]')
         for batch_idx, batch in enumerate(pbar):
@@ -117,17 +120,36 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
             
+            # Calculate MSE for monitoring
+            with torch.no_grad():
+                if isinstance(targets, dict):
+                    # For multi-output, calculate MSE on first output
+                    target_for_mse = list(targets.values())[0]
+                    output_for_mse = outputs[0] if isinstance(outputs, (list, tuple)) else outputs
+                else:
+                    target_for_mse = targets
+                    output_for_mse = outputs
+                
+                # Apply sigmoid if using BCEWithLogitsLoss
+                if isinstance(self.criterion, nn.BCEWithLogitsLoss):
+                    output_for_mse = torch.sigmoid(output_for_mse)
+                
+                mse = nn.functional.mse_loss(output_for_mse, target_for_mse)
+                epoch_mse += mse.item()
+            
             # Update progress
             epoch_loss += loss.item()
-            pbar.set_postfix({'loss': f'{loss.item():.6f}'})
+            pbar.set_postfix({'loss': f'{loss.item():.6f}', 'mse': f'{mse.item():.6f}'})
         
         avg_loss = epoch_loss / len(self.train_loader)
-        return avg_loss
+        avg_mse = epoch_mse / len(self.train_loader)
+        return avg_loss, avg_mse
     
     def validate(self):
         """Validate model"""
         self.model.eval()
         epoch_loss = 0.0
+        epoch_mse = 0.0
         
         with torch.no_grad():
             pbar = tqdm(self.val_loader, desc=f'Epoch {self.current_epoch+1} [Val]')
@@ -157,11 +179,28 @@ class Trainer:
                 else:
                     loss = self.criterion(outputs, targets)
                 
+                # Calculate MSE for monitoring
+                if isinstance(targets, dict):
+                    # For multi-output, calculate MSE on first output
+                    target_for_mse = list(targets.values())[0]
+                    output_for_mse = outputs[0] if isinstance(outputs, (list, tuple)) else outputs
+                else:
+                    target_for_mse = targets
+                    output_for_mse = outputs
+                
+                # Apply sigmoid if using BCEWithLogitsLoss
+                if isinstance(self.criterion, nn.BCEWithLogitsLoss):
+                    output_for_mse = torch.sigmoid(output_for_mse)
+                
+                mse = nn.functional.mse_loss(output_for_mse, target_for_mse)
+                epoch_mse += mse.item()
+                
                 epoch_loss += loss.item()
-                pbar.set_postfix({'loss': f'{loss.item():.6f}'})
+                pbar.set_postfix({'loss': f'{loss.item():.6f}', 'mse': f'{mse.item():.6f}'})
         
         avg_loss = epoch_loss / len(self.val_loader)
-        return avg_loss
+        avg_mse = epoch_mse / len(self.val_loader)
+        return avg_loss, avg_mse
     
     def save_checkpoint(self, filename='checkpoint.pth', is_best=False):
         """Save checkpoint"""
@@ -171,6 +210,8 @@ class Trainer:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'train_losses': self.train_losses,
             'val_losses': self.val_losses,
+            'train_mse': self.train_mse,
+            'val_mse': self.val_mse,
             'best_val_loss': self.best_val_loss,
         }
         
@@ -197,6 +238,8 @@ class Trainer:
         self.current_epoch = checkpoint['epoch']
         self.train_losses = checkpoint['train_losses']
         self.val_losses = checkpoint['val_losses']
+        self.train_mse = checkpoint.get('train_mse', [])
+        self.val_mse = checkpoint.get('val_mse', [])
         self.best_val_loss = checkpoint['best_val_loss']
         
         print(f"  ✓ Loaded checkpoint from epoch {self.current_epoch}")
@@ -221,23 +264,27 @@ class Trainer:
             self.current_epoch = epoch
             
             # Train
-            train_loss = self.train_epoch()
+            train_loss, train_mse = self.train_epoch()
             self.train_losses.append(train_loss)
+            self.train_mse.append(train_mse)
             
             # Validate
-            val_loss = self.validate()
+            val_loss, val_mse = self.validate()
             self.val_losses.append(val_loss)
+            self.val_mse.append(val_mse)
             
             # Log to TensorBoard
             self.writer.add_scalar('Loss/train', train_loss, epoch)
             self.writer.add_scalar('Loss/val', val_loss, epoch)
+            self.writer.add_scalar('MSE/train', train_mse, epoch)
+            self.writer.add_scalar('MSE/val', val_mse, epoch)
             self.writer.add_scalar('Learning_rate', 
                                   self.optimizer.param_groups[0]['lr'], epoch)
             
             # Print epoch summary
             print(f"\nEpoch {epoch+1}/{num_epochs}")
-            print(f"  • Train loss: {train_loss:.6f}")
-            print(f"  • Val loss: {val_loss:.6f}")
+            print(f"  • Train loss: {train_loss:.6f}  |  Train MSE: {train_mse:.6f}")
+            print(f"  • Val loss: {val_loss:.6f}  |  Val MSE: {val_mse:.6f}")
             
             # Save checkpoint
             if (epoch + 1) % save_freq == 0:
@@ -263,6 +310,8 @@ class Trainer:
         history = {
             'train_losses': self.train_losses,
             'val_losses': self.val_losses,
+            'train_mse': self.train_mse,
+            'val_mse': self.val_mse,
             'best_val_loss': self.best_val_loss,
         }
         
