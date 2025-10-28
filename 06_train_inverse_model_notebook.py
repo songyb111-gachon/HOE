@@ -69,6 +69,7 @@ CHECKPOINT_DIR = 'checkpoints'
 LOG_DIR = 'logs'
 EXPERIMENT_NAME = 'inverse_design_basic_tiles'
 SAVE_FREQ = 5                       # N epoch마다 저장
+VISUALIZE_FREQ = 10                 # N epoch마다 예측 시각화
 
 # 디렉토리 생성
 Path(CHECKPOINT_DIR).mkdir(exist_ok=True)
@@ -82,6 +83,8 @@ print(f"   Epochs: {NUM_EPOCHS}")
 print(f"   학습률: {LEARNING_RATE}")
 print(f"   손실 함수: {LOSS_TYPE}")
 print(f"   Pillar 가중치: {PILLAR_WEIGHT}")
+print(f"   체크포인트 저장: {SAVE_FREQ} epoch마다")
+print(f"   예측 시각화: {VISUALIZE_FREQ} epoch마다")
 print(f"   Device: {device}")
 
 # %% [markdown]
@@ -214,7 +217,8 @@ trainer = Trainer(
     device=device,
     checkpoint_dir=CHECKPOINT_DIR,
     log_dir=LOG_DIR,
-    experiment_name=EXPERIMENT_NAME
+    experiment_name=EXPERIMENT_NAME,
+    visualize_freq=VISUALIZE_FREQ
 )
 
 # 학습 실행

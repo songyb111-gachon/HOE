@@ -12,6 +12,9 @@ import numpy as np
 from datetime import datetime
 from tqdm import tqdm
 import json
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend for saving figures
 
 
 class Trainer:
@@ -26,7 +29,8 @@ class Trainer:
                  device='cuda',
                  checkpoint_dir='checkpoints',
                  log_dir='logs',
-                 experiment_name=None):
+                 experiment_name=None,
+                 visualize_freq=10):
         """
         Args:
             model: PyTorch model
@@ -68,6 +72,11 @@ class Trainer:
         self.val_mse = []
         self.train_psnr = []
         self.val_psnr = []
+        self.visualize_freq = visualize_freq
+        
+        # Create visualization directory
+        self.viz_dir = self.checkpoint_dir / 'visualizations'
+        self.viz_dir.mkdir(parents=True, exist_ok=True)
         
         print(f"\n{'='*80}")
         print(f"Trainer Initialized")
@@ -76,8 +85,10 @@ class Trainer:
         print(f"  • Device: {self.device}")
         print(f"  • Checkpoint dir: {self.checkpoint_dir}")
         print(f"  • Log dir: {self.log_dir}")
+        print(f"  • Visualization dir: {self.viz_dir}")
         print(f"  • Train samples: {len(train_loader.dataset)}")
         print(f"  • Val samples: {len(val_loader.dataset)}")
+        print(f"  • Visualization frequency: every {visualize_freq} epochs")
         print(f"{'='*80}\n")
     
     def train_epoch(self):
@@ -259,6 +270,64 @@ class Trainer:
         print(f"  ✓ Loaded checkpoint from epoch {self.current_epoch}")
         return True
     
+    def visualize_predictions(self, num_samples=4):
+        """Visualize validation predictions and save to file"""
+        self.model.eval()
+        
+        with torch.no_grad():
+            # Get one batch from validation
+            val_batch = next(iter(self.val_loader))
+            images = val_batch['image'].to(self.device)
+            targets = val_batch['target'].to(self.device)
+            
+            # Predict
+            outputs = self.model(images)
+            
+            # Apply sigmoid if using BCEWithLogitsLoss
+            if isinstance(self.criterion, nn.BCEWithLogitsLoss):
+                outputs = torch.sigmoid(outputs)
+            
+            # Move to CPU
+            images = images.cpu().numpy()
+            targets = targets.cpu().numpy()
+            outputs = outputs.cpu().numpy()
+            
+            # Plot
+            num_samples = min(num_samples, images.shape[0])
+            fig, axes = plt.subplots(num_samples, 3, figsize=(12, 4*num_samples))
+            
+            if num_samples == 1:
+                axes = axes.reshape(1, -1)
+            
+            for i in range(num_samples):
+                # Input
+                axes[i, 0].imshow(images[i, 0], cmap='viridis')
+                axes[i, 0].set_title(f'Input')
+                axes[i, 0].axis('off')
+                
+                # Ground Truth
+                axes[i, 1].imshow(targets[i, 0], cmap='gray')
+                axes[i, 1].set_title(f'Ground Truth')
+                axes[i, 1].axis('off')
+                
+                # Prediction
+                axes[i, 2].imshow(outputs[i, 0], cmap='gray')
+                mse = np.mean((targets[i, 0] - outputs[i, 0])**2)
+                psnr = 10 * np.log10(1.0 / (mse + 1e-10))
+                axes[i, 2].set_title(f'Prediction\nMSE: {mse:.4f} | PSNR: {psnr:.2f} dB')
+                axes[i, 2].axis('off')
+            
+            plt.suptitle(f'Epoch {self.current_epoch + 1} - Validation Predictions', 
+                        fontsize=14, fontweight='bold')
+            plt.tight_layout()
+            
+            # Save figure
+            save_path = self.viz_dir / f'predictions_epoch_{self.current_epoch+1:03d}.png'
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            
+            print(f"  📊 Saved predictions: {save_path.name}")
+    
     def train(self, num_epochs, save_freq=5):
         """Train for multiple epochs
         
@@ -303,6 +372,10 @@ class Trainer:
             print(f"\nEpoch {epoch+1}/{num_epochs}")
             print(f"  • Train loss: {train_loss:.6f}  |  Train MSE: {train_mse:.6f}  |  Train PSNR: {train_psnr:.2f} dB")
             print(f"  • Val loss: {val_loss:.6f}  |  Val MSE: {val_mse:.6f}  |  Val PSNR: {val_psnr:.2f} dB")
+            
+            # Visualize predictions
+            if (epoch + 1) % self.visualize_freq == 0 or (epoch + 1) == num_epochs:
+                self.visualize_predictions(num_samples=4)
             
             # Save checkpoint
             if (epoch + 1) % save_freq == 0:
