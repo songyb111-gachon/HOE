@@ -124,8 +124,11 @@ model.eval()
 
 print(f"✅ 모델 로드 완료!")
 print(f"   Epoch: {checkpoint.get('epoch', 'unknown')}")
-print(f"   Val Loss: {checkpoint.get('val_loss', 'unknown'):.6f}")
 
+# Val loss 출력 (있는 경우에만)
+if 'val_loss' in checkpoint:
+    print(f"   Val Loss: {checkpoint['val_loss']:.6f}")
+    
 # 모델 파라미터 수
 total_params = sum(p.numel() for p in model.parameters())
 print(f"   Total params: {total_params:,}")

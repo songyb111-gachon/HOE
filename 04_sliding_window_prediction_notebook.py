@@ -136,7 +136,10 @@ model.eval()
 print(f"✅ 모델 로드 완료!")
 print(f"   모델 타입: {MODEL_TYPE}")
 print(f"   Epoch: {checkpoint.get('epoch', 'unknown')}")
-print(f"   Val Loss: {checkpoint.get('val_loss', 'unknown')}")
+
+# Val loss 출력 (있는 경우에만)
+if 'val_loss' in checkpoint:
+    print(f"   Val Loss: {checkpoint['val_loss']:.6f}")
 
 # %% [markdown]
 # ## 5. 슬라이딩 윈도우 예측
