@@ -39,11 +39,16 @@ print(f"   PyTorch 버전: {torch.__version__}")
 # %%
 # ==================== 입력 파라미터 ====================
 INPUT_MASK_PATH = 'data/forward_intensity/inputs/sample_0000.png'  # 예측할 이미지
-CHECKPOINT_PATH = 'checkpoints/forward_intensity_basic_tiles/best_model.pth'  # 학습된 모델
 OUTPUT_DIR = 'predictions'                                      # 출력 디렉토리
 
-# ==================== 모델 파라미터 ====================
+# ==================== 모델 파라미터 (학습 시와 동일해야 함) ====================
 MODEL_TYPE = 'basic'            # 'basic', 'multiscale', 'phase_amplitude'
+LAYER_NUM = 5                   # U-Net 레이어 수
+BASE_FEATURES = 64              # 기본 feature 수
+DROPOUT_RATE = 0.2              # Dropout 비율
+USE_BATCHNORM = True            # BatchNorm 사용 여부
+EXPERIMENT_NAME = f'forward_phase_{MODEL_TYPE}_tiles'
+CHECKPOINT_PATH = f'checkpoints/{EXPERIMENT_NAME}/best_model.pth'  # 학습된 모델
 
 # ==================== 슬라이딩 윈도우 파라미터 ====================
 TILE_SIZE = 256                 # 타일 크기 (학습 시와 동일해야 함)
@@ -55,6 +60,8 @@ Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
 print("✅ 파라미터 설정 완료!")
 print(f"\n📊 예측 설정:")
 print(f"   입력 이미지: {INPUT_MASK_PATH}")
+print(f"   모델 타입: {MODEL_TYPE}")
+print(f"   실험 이름: {EXPERIMENT_NAME}")
 print(f"   체크포인트: {CHECKPOINT_PATH}")
 print(f"   타일 크기: {TILE_SIZE}×{TILE_SIZE}")
 print(f"   Stride: {STRIDE}")
@@ -91,13 +98,34 @@ plt.show()
 # %%
 print("\n📥 모델 로딩 중...")
 
-# 모델 생성
+# 모델 생성 (학습 시와 동일한 파라미터 사용)
 if MODEL_TYPE == 'basic':
-    model = ForwardPhaseUNet(in_channels=1, out_channels=1)
+    model = ForwardPhaseUNet(
+        in_channels=1,
+        out_channels=1,
+        layer_num=LAYER_NUM,
+        base_features=BASE_FEATURES,
+        dropout_rate=DROPOUT_RATE,
+        output_activation='linear',
+        use_batchnorm=USE_BATCHNORM
+    )
 elif MODEL_TYPE == 'multiscale':
-    model = MultiScalePhaseUNet(in_channels=1, out_channels=1)
+    model = MultiScalePhaseUNet(
+        in_channels=1,
+        out_channels=1,
+        layer_num=LAYER_NUM,
+        base_features=BASE_FEATURES,
+        dropout_rate=DROPOUT_RATE,
+        use_batchnorm=USE_BATCHNORM
+    )
 elif MODEL_TYPE == 'phase_amplitude':
-    model = PhaseAmplitudeUNet(in_channels=1)
+    model = PhaseAmplitudeUNet(
+        in_channels=1,
+        layer_num=LAYER_NUM,
+        base_features=BASE_FEATURES,
+        dropout_rate=DROPOUT_RATE,
+        use_batchnorm=USE_BATCHNORM
+    )
 
 # 체크포인트 로드
 checkpoint = torch.load(CHECKPOINT_PATH, map_location=device)
