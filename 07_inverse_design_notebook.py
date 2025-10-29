@@ -30,7 +30,7 @@ from tqdm import tqdm
 # PyTorch 코드 경로 추가
 sys.path.append('pytorch_codes')
 
-from models import InverseDesignUNet
+from models import InverseUNet
 
 # GPU 확인
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -43,15 +43,16 @@ print(f"   PyTorch 버전: {torch.__version__}")
 
 # %%
 # ==================== 입력 파라미터 ====================
-INPUT_PHASE_PATH = 'data/forward_phase/outputs/sample_0000.npy'  # 목표 intensity map
-CHECKPOINT_PATH = 'checkpoints/inverse_design_basic_tiles/best_model.pth'  # 학습된 모델
+INPUT_PHASE_PATH = 'data/forward_intensity/outputs/sample_0000.npy'  # 목표 intensity map
 OUTPUT_DIR = 'predictions/inverse'                               # 출력 디렉토리
 
-# ==================== 모델 파라미터 ====================
-LAYER_NUM = 5                       # U-Net 레이어 수 (학습 시와 동일)
-BASE_FEATURES = 64                  # 기본 feature 수 (학습 시와 동일)
+# ==================== 모델 파라미터 (학습 시와 동일해야 함) ====================
+LAYER_NUM = 5                       # U-Net 레이어 수
+BASE_FEATURES = 64                  # 기본 feature 수
 DROPOUT_RATE = 0.2                  # Dropout 비율
 USE_BATCHNORM = True                # BatchNorm 사용 여부
+EXPERIMENT_NAME = 'inverse_design_basic_tiles'
+CHECKPOINT_PATH = f'checkpoints/{EXPERIMENT_NAME}/best_model.pth'  # 학습된 모델
 
 # ==================== 슬라이딩 윈도우 파라미터 ====================
 TILE_SIZE = 256                     # 타일 크기 (학습 시와 동일해야 함)
@@ -66,6 +67,7 @@ Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
 print("✅ 파라미터 설정 완료!")
 print(f"\n📊 Inverse Design 설정:")
 print(f"   입력 Phase Map: {INPUT_PHASE_PATH}")
+print(f"   실험 이름: {EXPERIMENT_NAME}")
 print(f"   체크포인트: {CHECKPOINT_PATH}")
 print(f"   타일 크기: {TILE_SIZE}×{TILE_SIZE}")
 print(f"   Stride: {STRIDE}")
@@ -104,13 +106,14 @@ plt.show()
 # %%
 print("\n📥 Inverse Design 모델 로딩 중...")
 
-# 모델 생성
-model = InverseDesignUNet(
+# 모델 생성 (학습 시와 동일한 파라미터 사용)
+model = InverseUNet(
     in_channels=1,
-    out_channels=1,
+    out_channels=[1],
     layer_num=LAYER_NUM,
     base_features=BASE_FEATURES,
     dropout_rate=DROPOUT_RATE,
+    output_activations=['linear'],  # BCEWithLogitsLoss를 위해 linear 사용
     use_batchnorm=USE_BATCHNORM
 ).to(device)
 
