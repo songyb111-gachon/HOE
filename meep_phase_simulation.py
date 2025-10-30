@@ -1189,19 +1189,29 @@ def generate_single_training_sample(sample_idx, output_dir,
         input_dir.mkdir(parents=True, exist_ok=True)
         output_intensity_dir.mkdir(parents=True, exist_ok=True)
         
+        import cv2
+        
+        # Resize to 4096×4096 for consistent dataset size
+        TARGET_SIZE = (4096, 4096)
+        
         # Save input mask as PNG (0-255 grayscale)
         sample_name = f"sample_{sample_idx:04d}"
         input_path = input_dir / f"{sample_name}.png"
         mask_img = (mask * 255).astype(np.uint8)
         
-        import cv2
-        cv2.imwrite(str(input_path), mask_img)
-        print(f"  ✓ Input mask saved: {input_path}")
+        # Resize mask to 4096×4096
+        mask_img_resized = cv2.resize(mask_img, TARGET_SIZE, interpolation=cv2.INTER_NEAREST)
+        cv2.imwrite(str(input_path), mask_img_resized)
+        print(f"  ✓ Input mask saved: {input_path} ({mask.shape} → {TARGET_SIZE})")
         
         # Save output intensity map as .npy (preserve precision) - PRIMARY OUTPUT
         output_path = output_intensity_dir / f"{sample_name}.npy"
-        np.save(output_path, intensity_map.astype(np.float32))
-        print(f"  ✓ Output intensity map saved (PRIMARY): {output_path}")
+        
+        # Resize intensity map to 4096×4096 (cubic interpolation for smooth intensity)
+        intensity_map_resized = cv2.resize(intensity_map.astype(np.float32), TARGET_SIZE, 
+                                          interpolation=cv2.INTER_CUBIC)
+        np.save(output_path, intensity_map_resized.astype(np.float32))
+        print(f"  ✓ Output intensity map saved (PRIMARY): {output_path} ({intensity_map.shape} → {TARGET_SIZE})")
         
         # 5. Optional: Save visualization
         if visualize:
@@ -1210,22 +1220,22 @@ def generate_single_training_sample(sample_idx, output_dir,
             
             fig, axes = plt.subplots(1, 3, figsize=(18, 6))
             
-            # Input mask
-            axes[0].imshow(mask, cmap='gray')
-            axes[0].set_title(f'Input: Random Pillar Mask\n{mask.shape}, Fill: {fill_ratio:.1f}%')
+            # Input mask (resized 4096×4096)
+            axes[0].imshow(mask_img_resized, cmap='gray')
+            axes[0].set_title(f'Input: Random Pillar Mask (Resized)\n{mask_img_resized.shape}, Fill: {fill_ratio:.1f}%')
             axes[0].axis('off')
             
-            # Output intensity map (PRIMARY)
-            im1 = axes[1].imshow(intensity_map, cmap='hot')
-            axes[1].set_title(f'Output: EM Intensity Map (PRIMARY)\n{intensity_map.shape}')
+            # Output intensity map (resized 4096×4096 - PRIMARY)
+            im1 = axes[1].imshow(intensity_map_resized, cmap='hot')
+            axes[1].set_title(f'Output: EM Intensity Map (Resized - PRIMARY)\n{intensity_map_resized.shape}')
             axes[1].axis('off')
             plt.colorbar(im1, ax=axes[1], label='Intensity')
             
-            # Intensity histogram (PRIMARY)
-            axes[2].hist(intensity_map.flatten(), bins=50, alpha=0.7, color='red', edgecolor='black')
+            # Intensity histogram (resized - PRIMARY)
+            axes[2].hist(intensity_map_resized.flatten(), bins=50, alpha=0.7, color='red', edgecolor='black')
             axes[2].set_xlabel('Intensity')
             axes[2].set_ylabel('Count')
-            axes[2].set_title('Intensity Distribution (PRIMARY)')
+            axes[2].set_title('Intensity Distribution (Resized - PRIMARY)')
             axes[2].grid(True, alpha=0.3)
             
             plt.tight_layout()
@@ -1238,17 +1248,19 @@ def generate_single_training_sample(sample_idx, output_dir,
         # Sample info
         sample_info = {
             'sample_idx': sample_idx,
-            'input_shape': mask.shape,
-            'output_shape': intensity_map.shape,
+            'input_shape': mask_img_resized.shape,  # Final resized shape (4096×4096)
+            'output_shape': intensity_map_resized.shape,  # Final resized shape (4096×4096)
+            'original_input_shape': mask.shape,  # Original simulation shape
+            'original_output_shape': intensity_map.shape,  # Original simulation shape
             'fill_ratio': fill_ratio,
             'num_pillars': len(pillars),
             'pillar_params': pillar_params,
             'simulation_params': simulation_params,
-            'intensity_mean': float(np.mean(intensity_map)),
-            'intensity_std': float(np.std(intensity_map)),
-            'intensity_min': float(np.min(intensity_map)),
-            'intensity_max': float(np.max(intensity_map)),
-            # Phase info for reference
+            'intensity_mean': float(np.mean(intensity_map_resized)),
+            'intensity_std': float(np.std(intensity_map_resized)),
+            'intensity_min': float(np.min(intensity_map_resized)),
+            'intensity_max': float(np.max(intensity_map_resized)),
+            # Phase info for reference (original resolution)
             'phase_mean': float(np.mean(phase_map)),
             'phase_std': float(np.std(phase_map)),
             'phase_min': float(np.min(phase_map)),

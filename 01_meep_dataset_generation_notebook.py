@@ -60,7 +60,7 @@ PILLAR_PARAMS = {
 # ==================== MEEP 시뮬레이션 파라미터 ====================
 # 논문 방식: 평면파 광원을 pillar 근처에 배치하여 X축 최소화 ⚡⚡⚡
 SIMULATION_PARAMS = {
-    'resolution_nm': 1.0,               # 해상도 (pixels/nm) - 1:1 매칭 유지
+    'resolution_nm': 0.1,               # 해상도 (pixels/nm) - 1:1 매칭 유지
     'pml_nm': 500.0,                    # PML 두께 (nm) - 파장(535nm)과 비슷하면 충분!
     'size_x_nm': 2000.0,                # x 방향 크기 (nm) - 최소화! ⚡⚡⚡
                                         # 2000nm = 2μm
