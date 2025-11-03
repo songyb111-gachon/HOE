@@ -46,7 +46,7 @@ if torch.cuda.is_available():
 
 # %%
 # ==================== 데이터 파라미터 ====================
-DATA_PATH = 'data/forward_intensity_tiles/train'
+DATA_PATH = 'data/forward_intensity_tiles'
 BATCH_SIZE = 16                    # 타일 기반이므로 더 큰 배치 사용 가능
 NUM_WORKERS = 4                     # 데이터 로딩 워커
 
