@@ -1,12 +1,12 @@
 # %% [markdown]
 # # 🔮 Inverse Design Prediction (Sliding Window)
 #
-# 학습된 Inverse Design 모델로 대형 intensity map (4096×4096)으로부터  
+# 학습된 Inverse Design 모델로 대형 intensity map (2048×2048)으로부터  
 # pillar pattern을 설계합니다.
 #
 # **데이터 흐름:**
-# - Input: 목표 Phase Map (4096×4096 .npy)
-# - Output: 설계된 Pillar Pattern (4096×4096 PNG)
+# - Input: 목표 Phase Map (2048×2048 .npy)
+# - Output: 설계된 Pillar Pattern (2048×2048 PNG)
 #
 # ## 📋 목차
 # 1. 환경 설정 및 임포트

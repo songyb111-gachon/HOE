@@ -1191,15 +1191,15 @@ def generate_single_training_sample(sample_idx, output_dir,
         
         import cv2
         
-        # Resize to 4096×4096 for consistent dataset size
-        TARGET_SIZE = (4096, 4096)
+        # Resize to 2048×2048 for consistent dataset size
+        TARGET_SIZE = (2048, 2048)
         
         # Save input mask as PNG (0-255 grayscale)
         sample_name = f"sample_{sample_idx:04d}"
         input_path = input_dir / f"{sample_name}.png"
         mask_img = (mask * 255).astype(np.uint8)
         
-        # Resize mask to 4096×4096
+        # Resize mask to 2048×2048
         mask_img_resized = cv2.resize(mask_img, TARGET_SIZE, interpolation=cv2.INTER_NEAREST)
         cv2.imwrite(str(input_path), mask_img_resized)
         print(f"  ✓ Input mask saved: {input_path} ({mask.shape} → {TARGET_SIZE})")
@@ -1207,7 +1207,7 @@ def generate_single_training_sample(sample_idx, output_dir,
         # Save output intensity map as .npy (preserve precision) - PRIMARY OUTPUT
         output_path = output_intensity_dir / f"{sample_name}.npy"
         
-        # Resize intensity map to 4096×4096 (cubic interpolation for smooth intensity)
+        # Resize intensity map to 2048×2048 (cubic interpolation for smooth intensity)
         intensity_map_resized = cv2.resize(intensity_map.astype(np.float32), TARGET_SIZE, 
                                           interpolation=cv2.INTER_CUBIC)
         np.save(output_path, intensity_map_resized.astype(np.float32))
@@ -1220,12 +1220,12 @@ def generate_single_training_sample(sample_idx, output_dir,
             
             fig, axes = plt.subplots(1, 3, figsize=(18, 6))
             
-            # Input mask (resized 4096×4096)
+            # Input mask (resized 2048×2048)
             axes[0].imshow(mask_img_resized, cmap='gray')
             axes[0].set_title(f'Input: Random Pillar Mask (Resized)\n{mask_img_resized.shape}, Fill: {fill_ratio:.1f}%')
             axes[0].axis('off')
             
-            # Output intensity map (resized 4096×4096 - PRIMARY)
+            # Output intensity map (resized 2048×2048 - PRIMARY)
             im1 = axes[1].imshow(intensity_map_resized, cmap='hot')
             axes[1].set_title(f'Output: EM Intensity Map (Resized - PRIMARY)\n{intensity_map_resized.shape}')
             axes[1].axis('off')
@@ -1248,8 +1248,8 @@ def generate_single_training_sample(sample_idx, output_dir,
         # Sample info
         sample_info = {
             'sample_idx': sample_idx,
-            'input_shape': mask_img_resized.shape,  # Final resized shape (4096×4096)
-            'output_shape': intensity_map_resized.shape,  # Final resized shape (4096×4096)
+            'input_shape': mask_img_resized.shape,  # Final resized shape (2048×2048)
+            'output_shape': intensity_map_resized.shape,  # Final resized shape (2048×2048)
             'original_input_shape': mask.shape,  # Original simulation shape
             'original_output_shape': intensity_map.shape,  # Original simulation shape
             'fill_ratio': fill_ratio,
@@ -1294,10 +1294,10 @@ def generate_training_dataset(num_samples=100,
     pillar_params : dict
         Random pillar generation parameters
         Default: {
-            'pillar_radius': varies randomly 8-12 nm,
+            'pillar_radius': 45.0 nm,
             'min_edge_distance': 5.0 nm,
-            'domain_size': (4096, 4096) nm,
-            'initial_density': 100.0 pillars/μm²
+            'domain_size': (10000, 10000) nm,
+            'initial_density': 29.5 pillars/μm²
         }
     simulation_params : dict
         MEEP simulation parameters (uses module defaults if None)
@@ -1327,10 +1327,10 @@ def generate_training_dataset(num_samples=100,
     # Default pillar parameters (will vary per sample)
     if pillar_params is None:
         pillar_params = {
-            'pillar_radius': 10.0,  # Will vary per sample
+            'pillar_radius': 45.0,
             'min_edge_distance': 5.0,
-            'domain_size': (4096, 4096),
-            'initial_density': 100.0,
+            'domain_size': (10000, 10000),
+            'initial_density': 29.5,
             'max_attempts': 10000
         }
     

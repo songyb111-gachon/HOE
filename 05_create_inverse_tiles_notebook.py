@@ -4,8 +4,8 @@
 # Forward 데이터를 역순으로 사용하여 Inverse Design용 타일을 생성합니다.
 #
 # **데이터 방향:**
-# - Input: EM Intensity Map (4096×4096 .npy) ← Forward의 outputs
-# - Output: Pillar Pattern (4096×4096 .png) ← Forward의 inputs
+# - Input: EM Intensity Map (2048×2048 .npy) ← Forward의 outputs
+# - Output: Pillar Pattern (2048×2048 .png) ← Forward의 inputs
 #
 # ## 📋 목차
 # 1. 환경 설정 및 임포트

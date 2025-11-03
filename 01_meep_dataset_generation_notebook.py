@@ -45,22 +45,26 @@ OUTPUT_DIR = 'data/forward_intensity'  # 출력 디렉토리
 SAVE_VISUALIZATIONS = True    # 시각화 저장 여부
 
 # ==================== Random Pillar 파라미터 ====================
-# 최종 설정: 4096×4096 nm (Full size)
+# 최종 설정: 10000×10000 nm (10 μm × 10 μm)
+# 목표: 평균 2951 ± 14개 기둥
 PILLAR_PARAMS = {
-    'domain_size': (4096, 4096),        # 시뮬레이션 영역 (nm) - Full size!
-                                        # 4096×4096: 완전한 크기
-                                        # Resolution 1.0: 4096×4096 pixels
-                                        # 예상 Block 수: ~4.2M (느릴 수 있음)
-    'pillar_radius': 45.0,              # 기둥 반지름 (nm)
+    'domain_size': (10000, 10000),      # 시뮬레이션 영역 (nm) - 10 μm × 10 μm
+                                        # 10000×10000 nm = 100 μm²
+                                        # 시뮬레이션 그리드: 2048×2048 pixels
+                                        # Resolution: 10000/2048 ≈ 4.88 nm/pixel
+    'pillar_radius': 45.0,              # 기둥 반지름 (nm) - 유지
     'min_edge_distance': 5.0,           # 최소 edge-to-edge 거리 (nm)
-    'initial_density': 40.0,            # 초기 밀도 (pillars/μm²)
+    'initial_density': 29.5,            # 초기 밀도 (pillars/μm²)
+                                        # 예상 기둥 개수: 100 μm² × 29.5 = 2950개
     'max_attempts': 10000
 }
 
 # ==================== MEEP 시뮬레이션 파라미터 ====================
 # 논문 방식: 평면파 광원을 pillar 근처에 배치하여 X축 최소화 ⚡⚡⚡
 SIMULATION_PARAMS = {
-    'resolution_nm': 0.1,               # 해상도 (pixels/nm) - 1:1 매칭 유지
+    'resolution_nm': 2048.0 / 10000.0,  # 해상도 (pixels/nm) ≈ 0.2048
+                                        # 10000 nm → 2048 pixels
+                                        # 픽셀 크기: 4.88 nm/pixel
     'pml_nm': 500.0,                    # PML 두께 (nm) - 파장(535nm)과 비슷하면 충분!
     'size_x_nm': 2000.0,                # x 방향 크기 (nm) - 최소화! ⚡⚡⚡
                                         # 2000nm = 2μm
