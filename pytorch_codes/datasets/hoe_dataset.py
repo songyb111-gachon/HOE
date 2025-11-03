@@ -139,8 +139,18 @@ class InverseDesignDataset(BaseHOEDataset):
                 raise ValueError(f"Failed to load image: {input_path}")
         
         # Normalize
-        if self.normalize and self.input_extension == 'png':
-            image = self._normalize_image(image)
+        if self.normalize:
+            if self.input_extension == 'npy':
+                # Min-Max normalization for intensity maps to [0, 1]
+                # Avoid division by zero
+                img_min = image.min()
+                img_max = image.max()
+                if img_max > img_min:
+                    image = (image - img_min) / (img_max - img_min)
+                else:
+                    image = np.zeros_like(image)
+            elif self.input_extension == 'png':
+                image = self._normalize_image(image)
         
         # Load output
         output = self._read_output(image_name)
@@ -222,28 +232,38 @@ class ForwardPhaseDataset(BaseHOEDataset):
         # Add channel dimension (H, W) -> (H, W, 1)
         mask = mask[:, :, np.newaxis]
         
-        # Load output phase map (.npy, float32)
+        # Load output intensity map (.npy, float32)
         output_path = self.data_path / 'outputs' / f'{image_name}.npy'
-        phase_map = np.load(output_path).astype(np.float32)
+        intensity_map = np.load(output_path).astype(np.float32)
+        
+        # Normalize intensity map to [0, 1] if requested
+        if self.normalize:
+            # Min-Max normalization
+            img_min = intensity_map.min()
+            img_max = intensity_map.max()
+            if img_max > img_min:
+                intensity_map = (intensity_map - img_min) / (img_max - img_min)
+            else:
+                intensity_map = np.zeros_like(intensity_map)
         
         # Convert to torch tensors
         # Mask: (H, W, 1) -> (1, H, W)
         mask = torch.from_numpy(mask).permute(2, 0, 1).float()
         
-        # Phase map: (H, W) -> (1, H, W)
-        if phase_map.ndim == 2:
-            phase_map = torch.from_numpy(phase_map).unsqueeze(0).float()
+        # Intensity map: (H, W) -> (1, H, W)
+        if intensity_map.ndim == 2:
+            intensity_map = torch.from_numpy(intensity_map).unsqueeze(0).float()
         else:
-            phase_map = torch.from_numpy(phase_map).float()
+            intensity_map = torch.from_numpy(intensity_map).float()
         
         # Apply transforms
         if self.transform:
             mask = self.transform(mask)
-            phase_map = self.transform(phase_map)
+            intensity_map = self.transform(intensity_map)
         
         return {
             'image': mask,
-            'target': phase_map,
+            'target': intensity_map,
             'name': image_name
         }
 

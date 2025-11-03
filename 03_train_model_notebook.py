@@ -95,12 +95,12 @@ from torch.utils.data import DataLoader
 
 train_dataset = ForwardPhaseDataset(
     data_path=f'{DATA_PATH}/train',
-    normalize=False
+    normalize=True  # Min-Max 정규화로 intensity map을 [0, 1] 범위로 변환
 )
 
 val_dataset = ForwardPhaseDataset(
     data_path=f'{DATA_PATH}/val',
-    normalize=False
+    normalize=True  # Min-Max 정규화로 intensity map을 [0, 1] 범위로 변환
 )
 
 # 데이터 로더 생성

@@ -100,14 +100,14 @@ train_dataset = InverseDesignDataset(
     data_path='data/inverse_tiles/train',
     input_extension='npy',
     output_extension='png',
-    normalize=False
+    normalize=True  # Min-Max 정규화로 [0, 1] 범위로 변환
 )
 
 val_dataset = InverseDesignDataset(
     data_path='data/inverse_tiles/val',
     input_extension='npy',
     output_extension='png',
-    normalize=False
+    normalize=True  # Min-Max 정규화로 [0, 1] 범위로 변환
 )
 
 # 데이터 로더 생성
