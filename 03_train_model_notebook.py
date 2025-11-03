@@ -90,26 +90,45 @@ print(f"   Device: {device}")
 # %%
 print("📂 데이터 로딩 중...")
 
-# 데이터 로더 생성
-train_loader, val_loader, test_loader = create_dataloaders(
-    dataset_path=DATA_PATH,
-    dataset_type='forward_phase',
-    batch_size=BATCH_SIZE,
-    num_workers=NUM_WORKERS,
-    train_split=0.8,
-    val_split=0.2,
+# 직접 train/val 데이터셋 생성 (02번에서 이미 나눈 것 사용)
+from torch.utils.data import DataLoader
+
+train_dataset = ForwardPhaseDataset(
+    data_path=f'{DATA_PATH}/train',
     normalize=False
 )
 
+val_dataset = ForwardPhaseDataset(
+    data_path=f'{DATA_PATH}/val',
+    normalize=False
+)
+
+# 데이터 로더 생성
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=True,
+    num_workers=NUM_WORKERS
+)
+
+val_loader = DataLoader(
+    val_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=False,
+    num_workers=NUM_WORKERS
+)
+
 print("\n✅ 데이터 로더 생성 완료!")
-print(f"   훈련 배치: {len(train_loader)}")
-print(f"   검증 배치: {len(val_loader)}")
+print(f"   훈련 샘플: {len(train_dataset)} ({len(train_loader)} 배치)")
+print(f"   검증 샘플: {len(val_dataset)} ({len(val_loader)} 배치)")
 
 # 샘플 데이터 확인
 sample = next(iter(train_loader))
 print(f"\n📊 배치 크기:")
 print(f"   입력: {sample['image'].shape}  # (batch, C, H, W)")
 print(f"   출력: {sample['target'].shape}")
+print(f"   입력 범위: [{sample['image'].min():.2f}, {sample['image'].max():.2f}]")
+print(f"   출력 범위: [{sample['target'].min():.2f}, {sample['target'].max():.2f}]")
 
 # %% [markdown]
 # ## 4. 모델 생성
