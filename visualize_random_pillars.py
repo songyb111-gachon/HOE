@@ -119,20 +119,37 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
         fontsize=16, fontweight='bold', y=0.98
     )
     
-    # Step 1: 원본 마스크 생성 (도메인 크기)
+    # Step 1: 원본 마스크 생성 (도메인 크기) - 최적화된 버전
     width, height = params['domain_size']
     mask_original = np.zeros((height, width), dtype=np.uint8)
     
     radius = params['pillar_radius']
-    print("\n원본 마스크 생성 중...")
-    for (cx, cy) in pillars:
+    radius_px = int(radius)
+    
+    print(f"\n원본 마스크 생성 중 ({len(pillars)} pillars)...")
+    
+    # 최적화: 각 pillar의 bounding box만 계산
+    for idx, (cx, cy) in enumerate(pillars):
         cx_px = int(cx)
         cy_px = int(cy)
-        radius_px = int(radius)
         
-        y_indices, x_indices = np.ogrid[:height, :width]
-        distances = np.sqrt((x_indices - cx_px)**2 + ((height - 1 - y_indices) - cy_px)**2)
-        mask_original[distances <= radius_px] = 1
+        # Bounding box 계산 (pillar 주변만)
+        x_min = max(0, cx_px - radius_px)
+        x_max = min(width, cx_px + radius_px + 1)
+        y_min = max(0, cy_px - radius_px)
+        y_max = min(height, cy_px + radius_px + 1)
+        
+        # 작은 영역에서만 거리 계산
+        y_indices, x_indices = np.ogrid[y_min:y_max, x_min:x_max]
+        distances = np.sqrt((x_indices - cx_px)**2 + (y_indices - cy_px)**2)
+        
+        # 해당 영역에만 마스크 적용
+        mask_original[y_min:y_max, x_min:x_max][distances <= radius_px] = 1
+        
+        # 진행상황 표시 (100개마다)
+        if (idx + 1) % 500 == 0 or (idx + 1) == len(pillars):
+            print(f"  {idx + 1}/{len(pillars)} pillars processed...")
+    
     print(f"✓ 원본 마스크 생성 완료 ({width}×{height})")
     
     # Step 2: 2048×2048로 리사이즈 (MEEP 시뮬레이션과 동일)
@@ -395,21 +412,27 @@ def plot_pillar_statistics(samples, params, save_path='pillar_statistics.png'):
         if sample_idx < num_samples:
             ax = fig.add_subplot(gs[0, idx])
             
-            # 마스크 생성
+            # 마스크 생성 (최적화)
             width, height = params['domain_size']
             mask = np.zeros((height, width), dtype=np.uint8)
             
             pillars = samples[sample_idx]['pillars']
             radius = params['pillar_radius']
+            radius_px = int(radius)
             
             for (cx, cy) in pillars:
                 cx_px = int(cx)
                 cy_px = int(cy)
-                radius_px = int(radius)
                 
-                y_indices, x_indices = np.ogrid[:height, :width]
-                distances = np.sqrt((x_indices - cx_px)**2 + ((height - 1 - y_indices) - cy_px)**2)
-                mask[distances <= radius_px] = 1
+                # Bounding box만 계산
+                x_min = max(0, cx_px - radius_px)
+                x_max = min(width, cx_px + radius_px + 1)
+                y_min = max(0, cy_px - radius_px)
+                y_max = min(height, cy_px + radius_px + 1)
+                
+                y_indices, x_indices = np.ogrid[y_min:y_max, x_min:x_max]
+                distances = np.sqrt((x_indices - cx_px)**2 + (y_indices - cy_px)**2)
+                mask[y_min:y_max, x_min:x_max][distances <= radius_px] = 1
             
             # 시각화
             ax.imshow(mask, cmap='viridis', interpolation='nearest')
