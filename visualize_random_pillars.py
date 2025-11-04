@@ -12,6 +12,7 @@ from matplotlib.gridspec import GridSpec
 from random_pillar_generator import RandomPillarGenerator
 from datetime import datetime
 import warnings
+import cv2
 
 # matplotlib 경고 억제
 warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
@@ -80,7 +81,7 @@ def generate_multiple_samples(params, num_samples=10, random_seed=None):
     return samples
 
 
-def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=6, crop_size=256):
+def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=6, crop_size=256, target_size=(2048, 2048)):
     """
     단일 샘플의 필러 패턴을 크게 시각화
     
@@ -96,6 +97,8 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
         랜덤 크롭할 개수
     crop_size : int
         크롭 크기 (정사각형)
+    target_size : tuple
+        최종 리사이즈할 크기 (width, height)
     """
     pillars = sample['pillars']
     stats = sample['stats']
@@ -107,19 +110,19 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     # 제목
     fig.suptitle(
         f'랜덤 필러 패턴 (단일 샘플)\n'
-        f'Domain: {params["domain_size"][0]}×{params["domain_size"][1]} nm² | '
+        f'Domain: {params["domain_size"][0]}×{params["domain_size"][1]} nm² → Resized: {target_size[0]}×{target_size[1]} pixels | '
         f'Pillar Count: {len(pillars)} | '
         f'Radius: {params["pillar_radius"]} nm | '
         f'Min Distance: {params["min_edge_distance"]} nm',
         fontsize=16, fontweight='bold', y=0.98
     )
     
-    # 마스크 생성 (전체 이미지)
+    # Step 1: 원본 마스크 생성 (도메인 크기)
     width, height = params['domain_size']
-    mask = np.zeros((height, width), dtype=np.uint8)
+    mask_original = np.zeros((height, width), dtype=np.uint8)
     
     radius = params['pillar_radius']
-    print("\n마스크 생성 중...")
+    print("\n원본 마스크 생성 중...")
     for (cx, cy) in pillars:
         cx_px = int(cx)
         cy_px = int(cy)
@@ -127,17 +130,26 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
         
         y_indices, x_indices = np.ogrid[:height, :width]
         distances = np.sqrt((x_indices - cx_px)**2 + ((height - 1 - y_indices) - cy_px)**2)
-        mask[distances <= radius_px] = 1
-    print("✓ 마스크 생성 완료")
+        mask_original[distances <= radius_px] = 1
+    print(f"✓ 원본 마스크 생성 완료 ({width}×{height})")
     
-    # 1. 필러 패턴 이미지 (전체, 축소)
+    # Step 2: 2048×2048로 리사이즈 (MEEP 시뮬레이션과 동일)
+    print(f"리사이즈 중: {width}×{height} → {target_size[0]}×{target_size[1]}...")
+    mask_resized = cv2.resize(mask_original, target_size, interpolation=cv2.INTER_NEAREST)
+    print("✓ 리사이즈 완료")
+    
+    # 이후 작업은 리사이즈된 이미지 사용
+    mask = mask_resized
+    width, height = target_size
+    
+    # 1. 필러 패턴 이미지 (리사이즈된 전체)
     ax1 = fig.add_subplot(gs[0, 0:2])
     
     im = ax1.imshow(mask, cmap='viridis', interpolation='nearest')
-    ax1.set_title(f'전체 필러 패턴 ({width}×{height} nm²)\n{len(pillars)}개 필러', 
+    ax1.set_title(f'리사이즈된 필러 패턴 ({width}×{height} pixels)\n{len(pillars)}개 필러', 
                   fontsize=13, fontweight='bold', pad=10)
-    ax1.set_xlabel('X (nm)', fontsize=10, fontweight='bold')
-    ax1.set_ylabel('Y (nm)', fontsize=10, fontweight='bold')
+    ax1.set_xlabel('X (pixel)', fontsize=10, fontweight='bold')
+    ax1.set_ylabel('Y (pixel)', fontsize=10, fontweight='bold')
     ax1.grid(False)
     
     # 컬러바 추가
@@ -189,8 +201,8 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
              family='monospace',
              bbox=dict(boxstyle='round', facecolor=status_color, alpha=0.3))
     
-    # 3-8. 랜덤 크롭 이미지들 (256×256 nm²)
-    print(f"\n{crop_size}×{crop_size} 랜덤 크롭 생성 중...")
+    # 3-8. 랜덤 크롭 이미지들 (256×256 pixels, 학습 타일 크기)
+    print(f"\n리사이즈된 이미지({width}×{height})에서 {crop_size}×{crop_size} 랜덤 크롭 생성 중...")
     
     crop_positions = []
     for i in range(num_crops):
@@ -199,7 +211,7 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
         max_y = height - crop_size
         
         if max_x <= 0 or max_y <= 0:
-            print(f"경고: 도메인 크기({width}×{height})가 크롭 크기({crop_size}×{crop_size})보다 작습니다.")
+            print(f"경고: 리사이즈된 크기({width}×{height})가 크롭 크기({crop_size}×{crop_size})보다 작습니다.")
             break
         
         start_x = np.random.randint(0, max_x)
@@ -225,15 +237,15 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
         total_pixels = cropped.size
         fill_ratio = (pillar_pixels / total_pixels) * 100
         
-        ax.set_title(f'크롭 {idx+1} [{start_x}:{start_x+crop_size}, {start_y}:{start_y+crop_size}]\n'
-                     f'필러: {pillar_pixels:,}px ({fill_ratio:.1f}%)',
+        ax.set_title(f'학습 타일 크롭 {idx+1}\n'
+                     f'[{start_x}:{start_x+crop_size}, {start_y}:{start_y+crop_size}] | 필러: {pillar_pixels}px ({fill_ratio:.1f}%)',
                      fontsize=9, fontweight='bold')
-        ax.set_xlabel('X', fontsize=8)
-        ax.set_ylabel('Y', fontsize=8)
+        ax.set_xlabel('X (pixel)', fontsize=8)
+        ax.set_ylabel('Y (pixel)', fontsize=8)
         ax.tick_params(labelsize=7)
         ax.grid(False)
     
-    print(f"✓ {len(crop_positions)}개 크롭 생성 완료")
+    print(f"✓ {len(crop_positions)}개 학습 타일 크롭 생성 완료")
     
     # 저장 및 표시
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
@@ -514,7 +526,8 @@ def main():
     NUM_SAMPLES = 1  # 생성할 샘플 개수
     RANDOM_SEED = None  # 재현성을 위한 시드 (None이면 랜덤)
     
-    # 랜덤 크롭 설정
+    # 리사이즈 및 크롭 설정
+    TARGET_SIZE = (2048, 2048)  # 최종 저장될 이미지 크기 (MEEP 시뮬과 동일)
     NUM_CROPS = 8  # 랜덤 크롭할 개수 (최대 8개)
     CROP_SIZE = 256  # 크롭 크기 (256×256, 학습에 사용될 타일 크기)
     
@@ -532,8 +545,9 @@ def main():
     print(f"  - 최소 간격:       {PARAMS['min_edge_distance']} nm")
     print(f"  - 도메인 크기:     {PARAMS['domain_size'][0]} × {PARAMS['domain_size'][1]} nm²")
     print(f"  - 초기 밀도:       {PARAMS['initial_density']} /μm²")
+    print(f"  - 리사이즈 크기:   {TARGET_SIZE[0]} × {TARGET_SIZE[1]} pixels")
     print(f"  - 샘플 개수:       {NUM_SAMPLES}")
-    print(f"  - 랜덤 크롭:       {NUM_CROPS}개, {CROP_SIZE}×{CROP_SIZE} 크기")
+    print(f"  - 학습 타일 크롭:  {NUM_CROPS}개, {CROP_SIZE}×{CROP_SIZE} pixels")
     print(f"  - 랜덤 시드:       {RANDOM_SEED if RANDOM_SEED is not None else '랜덤'}")
     print(f"  - 출력 파일:       {OUTPUT_FILE}")
     print("="*80)
@@ -553,7 +567,8 @@ def main():
             params=PARAMS,
             save_path=OUTPUT_FILE,
             num_crops=NUM_CROPS,
-            crop_size=CROP_SIZE
+            crop_size=CROP_SIZE,
+            target_size=TARGET_SIZE
         )
     else:
         # 여러 샘플: 통계 분석 및 비교
