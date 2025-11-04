@@ -103,14 +103,16 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     pillars = sample['pillars']
     stats = sample['stats']
     
-    # Figure 생성 (크롭 이미지를 위해 더 큰 레이아웃)
-    fig = plt.figure(figsize=(20, 12))
-    gs = GridSpec(3, 4, figure=fig, hspace=0.35, wspace=0.3)
+    # Figure 생성 (모든 단계를 표시하기 위한 큰 레이아웃)
+    fig = plt.figure(figsize=(24, 14))
+    gs = GridSpec(4, 5, figure=fig, hspace=0.4, wspace=0.3)
     
     # 제목
     fig.suptitle(
-        f'랜덤 필러 패턴 (단일 샘플)\n'
-        f'Domain: {params["domain_size"][0]}×{params["domain_size"][1]} nm² → Resized: {target_size[0]}×{target_size[1]} pixels | '
+        f'랜덤 필러 생성 파이프라인 (각 단계별 시각화)\n'
+        f'Original Domain: {params["domain_size"][0]}×{params["domain_size"][1]} nm² → '
+        f'Resized: {target_size[0]}×{target_size[1]} px → '
+        f'Cropped: {crop_size}×{crop_size} px | '
         f'Pillar Count: {len(pillars)} | '
         f'Radius: {params["pillar_radius"]} nm | '
         f'Min Distance: {params["min_edge_distance"]} nm',
@@ -138,27 +140,67 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     mask_resized = cv2.resize(mask_original, target_size, interpolation=cv2.INTER_NEAREST)
     print("✓ 리사이즈 완료")
     
+    # ========================================
+    # 첫 번째 행: 각 단계별 출력 시각화
+    # ========================================
+    
+    # 1-1. STEP 1: 원본 도메인 (10000×10000 nm)
+    ax1 = fig.add_subplot(gs[0, 0:2])
+    im1 = ax1.imshow(mask_original, cmap='viridis', interpolation='nearest')
+    ax1.set_title(
+        f'STEP 1: 원본 도메인\n'
+        f'{params["domain_size"][0]}×{params["domain_size"][1]} nm² | {len(pillars)}개 필러',
+        fontsize=12, fontweight='bold', pad=10, 
+        bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3)
+    )
+    ax1.set_xlabel('X (nm)', fontsize=9, fontweight='bold')
+    ax1.set_ylabel('Y (nm)', fontsize=9, fontweight='bold')
+    ax1.grid(False)
+    
+    # 원본 통계
+    orig_pillar_pixels = np.sum(mask_original)
+    orig_total_pixels = mask_original.size
+    orig_fill_ratio = (orig_pillar_pixels / orig_total_pixels) * 100
+    
+    orig_stats_text = f'필러 픽셀: {orig_pillar_pixels:,}\n충진율: {orig_fill_ratio:.2f}%'
+    ax1.text(0.02, 0.98, orig_stats_text,
+             transform=ax1.transAxes,
+             fontsize=9,
+             verticalalignment='top',
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    
+    # 1-2. STEP 2: 리사이즈 (2048×2048 pixels)
+    ax2 = fig.add_subplot(gs[0, 2:4])
+    im2 = ax2.imshow(mask_resized, cmap='viridis', interpolation='nearest')
+    ax2.set_title(
+        f'STEP 2: 리사이즈 (cv2.resize)\n'
+        f'{target_size[0]}×{target_size[1]} pixels | MEEP 시뮬 출력 크기',
+        fontsize=12, fontweight='bold', pad=10,
+        bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.3)
+    )
+    ax2.set_xlabel('X (pixel)', fontsize=9, fontweight='bold')
+    ax2.set_ylabel('Y (pixel)', fontsize=9, fontweight='bold')
+    ax2.grid(False)
+    
+    # 리사이즈된 통계
+    resized_pillar_pixels = np.sum(mask_resized)
+    resized_total_pixels = mask_resized.size
+    resized_fill_ratio = (resized_pillar_pixels / resized_total_pixels) * 100
+    
+    resized_stats_text = f'필러 픽셀: {resized_pillar_pixels:,}\n충진율: {resized_fill_ratio:.2f}%'
+    ax2.text(0.02, 0.98, resized_stats_text,
+             transform=ax2.transAxes,
+             fontsize=9,
+             verticalalignment='top',
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    
     # 이후 작업은 리사이즈된 이미지 사용
     mask = mask_resized
     width, height = target_size
     
-    # 1. 필러 패턴 이미지 (리사이즈된 전체)
-    ax1 = fig.add_subplot(gs[0, 0:2])
-    
-    im = ax1.imshow(mask, cmap='viridis', interpolation='nearest')
-    ax1.set_title(f'리사이즈된 필러 패턴 ({width}×{height} pixels)\n{len(pillars)}개 필러', 
-                  fontsize=13, fontweight='bold', pad=10)
-    ax1.set_xlabel('X (pixel)', fontsize=10, fontweight='bold')
-    ax1.set_ylabel('Y (pixel)', fontsize=10, fontweight='bold')
-    ax1.grid(False)
-    
-    # 컬러바 추가
-    cbar = plt.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
-    cbar.set_label('Pillar (1) / Empty (0)', fontsize=9, fontweight='bold')
-    
-    # 2. 통계 정보 테이블
-    ax2 = fig.add_subplot(gs[0, 2:4])
-    ax2.axis('off')
+    # 1-3. 통계 정보 테이블
+    ax3 = fig.add_subplot(gs[0, 4])
+    ax3.axis('off')
     
     target_count = 2951
     target_tolerance = 14
@@ -169,41 +211,43 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     status_color = "lightgreen" if is_target_met else "lightcoral"
     
     stats_text = f"""
-╔═══════════════════════════════════════════════════╗
-║              필러 생성 통계                        ║
-╠═══════════════════════════════════════════════════╣
-║  필러 개수:           {stats['기둥 개수']:8d}                ║
-║  필러 밀도:           {stats['기둥 밀도 (/μm²)']:8.2f} /μm²          ║
-║  충진율:              {stats['충진율 (%)']:8.2f} %             ║
-║  최소 거리:           {stats['최소 edge-to-edge 거리 (nm)']:8.2f} nm            ║
-║  평균 최근접 거리:    {stats['평균 최근접 이웃 거리 (nm)']:8.2f} nm            ║
-╠═══════════════════════════════════════════════════╣
-║              파라미터 설정                         ║
-╠═══════════════════════════════════════════════════╣
-║  초기 밀도:           {params['initial_density']:8.1f} /μm²          ║
-║  필러 반지름:         {params['pillar_radius']:8.1f} nm             ║
-║  최소 허용 거리:      {params['min_edge_distance']:8.1f} nm             ║
-║  도메인 크기:         {params['domain_size'][0]:d} × {params['domain_size'][1]:d} nm²   ║
-╠═══════════════════════════════════════════════════╣
-║              목표 평가                             ║
-╠═══════════════════════════════════════════════════╣
-║  목표 필러 개수:      {target_count} ± {target_tolerance}                    ║
-║  실제 필러 개수:      {stats['기둥 개수']:8d}                ║
-║  상태:                {status_symbol} {status_text:20s}   ║
-╚═══════════════════════════════════════════════════╝
+╔═════════════════════════════════╗
+║       필러 생성 통계             ║
+╠═════════════════════════════════╣
+║ 필러 개수: {stats['기둥 개수']:6d}          ║
+║ 밀도: {stats['기둥 밀도 (/μm²)']:8.2f} /μm²     ║
+║ 충진율: {stats['충진율 (%)']:6.2f} %         ║
+║ 최소 거리: {stats['최소 edge-to-edge 거리 (nm)']:6.2f} nm      ║
+╠═════════════════════════════════╣
+║       파라미터                   ║
+╠═════════════════════════════════╣
+║ 초기 밀도: {params['initial_density']:5.1f} /μm²     ║
+║ 반지름: {params['pillar_radius']:8.1f} nm        ║
+║ 최소 거리: {params['min_edge_distance']:6.1f} nm      ║
+╠═════════════════════════════════╣
+║       목표 평가                  ║
+╠═════════════════════════════════╣
+║ 목표: {target_count} ± {target_tolerance}              ║
+║ 실제: {stats['기둥 개수']:6d}                ║
+║ {status_symbol} {status_text:15s}       ║
+╚═════════════════════════════════╝
 """
     
-    ax2.text(0.5, 0.5, stats_text,
-             transform=ax2.transAxes,
-             fontsize=10,
+    ax3.text(0.5, 0.5, stats_text,
+             transform=ax3.transAxes,
+             fontsize=8,
              verticalalignment='center',
              horizontalalignment='center',
              family='monospace',
              bbox=dict(boxstyle='round', facecolor=status_color, alpha=0.3))
     
-    # 3-8. 랜덤 크롭 이미지들 (256×256 pixels, 학습 타일 크기)
-    print(f"\n리사이즈된 이미지({width}×{height})에서 {crop_size}×{crop_size} 랜덤 크롭 생성 중...")
+    # ========================================
+    # 두 번째-네 번째 행: STEP 3 - 랜덤 크롭들
+    # ========================================
     
+    print(f"\nSTEP 3: 리사이즈된 이미지({width}×{height})에서 {crop_size}×{crop_size} 랜덤 크롭 생성 중...")
+    
+    # 크롭 위치 결정
     crop_positions = []
     for i in range(num_crops):
         # 랜덤 시작 위치 선택 (크롭이 이미지 범위 내에 있도록)
@@ -221,8 +265,16 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     
     # 크롭 이미지 시각화
     for idx, (start_x, start_y) in enumerate(crop_positions):
-        row = 1 + idx // 4  # 2번째, 3번째 행
-        col = idx % 4
+        # 레이아웃: 1행 5개, 2행 5개, 3행 5개 (최대 15개 크롭 가능)
+        if idx < 5:
+            row = 1
+            col = idx
+        elif idx < 10:
+            row = 2
+            col = idx - 5
+        else:
+            row = 3
+            col = idx - 10
         
         ax = fig.add_subplot(gs[row, col])
         
@@ -237,15 +289,33 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
         total_pixels = cropped.size
         fill_ratio = (pillar_pixels / total_pixels) * 100
         
-        ax.set_title(f'학습 타일 크롭 {idx+1}\n'
-                     f'[{start_x}:{start_x+crop_size}, {start_y}:{start_y+crop_size}] | 필러: {pillar_pixels}px ({fill_ratio:.1f}%)',
-                     fontsize=9, fontweight='bold')
-        ax.set_xlabel('X (pixel)', fontsize=8)
-        ax.set_ylabel('Y (pixel)', fontsize=8)
-        ax.tick_params(labelsize=7)
+        # 제목 색상 (STEP 3 강조)
+        title_color = 'lightyellow' if idx == 0 else None
+        
+        ax.set_title(
+            f'{"STEP 3: " if idx == 0 else ""}학습 타일 #{idx+1}\n'
+            f'위치 [{start_x}:{start_x+crop_size}, {start_y}:{start_y+crop_size}]\n'
+            f'필러: {pillar_pixels}px ({fill_ratio:.1f}%)',
+            fontsize=9, fontweight='bold', pad=8,
+            bbox=dict(boxstyle='round', facecolor=title_color, alpha=0.3) if title_color else None
+        )
+        ax.set_xlabel('X', fontsize=7)
+        ax.set_ylabel('Y', fontsize=7)
+        ax.tick_params(labelsize=6)
         ax.grid(False)
+        
+        # 크롭 영역을 원본에 표시하기 위한 사각형
+        if idx == 0:
+            # 첫 번째 크롭 위치를 STEP 2 이미지에 표시
+            from matplotlib.patches import Rectangle
+            rect = Rectangle((start_x, start_y), crop_size, crop_size, 
+                           linewidth=2, edgecolor='red', facecolor='none')
+            ax2.add_patch(rect)
+            ax2.text(start_x, start_y-10, f'크롭 #1', 
+                    color='red', fontsize=8, fontweight='bold',
+                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
-    print(f"✓ {len(crop_positions)}개 학습 타일 크롭 생성 완료")
+    print(f"✓ STEP 3 완료: {len(crop_positions)}개 학습 타일 크롭 생성")
     
     # 저장 및 표시
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
@@ -528,7 +598,7 @@ def main():
     
     # 리사이즈 및 크롭 설정
     TARGET_SIZE = (2048, 2048)  # 최종 저장될 이미지 크기 (MEEP 시뮬과 동일)
-    NUM_CROPS = 8  # 랜덤 크롭할 개수 (최대 8개)
+    NUM_CROPS = 10  # 랜덤 크롭할 개수 (최대 15개 가능, 5×3 레이아웃)
     CROP_SIZE = 256  # 크롭 크기 (256×256, 학습에 사용될 타일 크기)
     
     # 출력 파일명
