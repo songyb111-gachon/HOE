@@ -152,10 +152,20 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     
     print(f"✓ 원본 마스크 생성 완료 ({width}×{height})")
     
+    # 원본 마스크 저장 (10000×10000)
+    original_save_path = save_path.replace('.png', '_original_10000x10000.png')
+    cv2.imwrite(original_save_path, mask_original * 255)
+    print(f"  → 원본 저장: {original_save_path}")
+    
     # Step 2: 2048×2048로 리사이즈 (MEEP 시뮬레이션과 동일)
-    print(f"리사이즈 중: {width}×{height} → {target_size[0]}×{target_size[1]}...")
+    print(f"\n리사이즈 중: {width}×{height} → {target_size[0]}×{target_size[1]}...")
     mask_resized = cv2.resize(mask_original, target_size, interpolation=cv2.INTER_NEAREST)
     print("✓ 리사이즈 완료")
+    
+    # 리사이즈된 마스크 저장 (2048×2048)
+    resized_save_path = save_path.replace('.png', '_resized_2048x2048.png')
+    cv2.imwrite(resized_save_path, mask_resized * 255)
+    print(f"  → 리사이즈 저장: {resized_save_path}")
     
     # ========================================
     # 첫 번째 행: 각 단계별 출력 시각화
@@ -334,12 +344,33 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     
     print(f"✓ STEP 3 완료: {len(crop_positions)}개 학습 타일 크롭 생성")
     
-    # 저장 및 표시
+    # 크롭된 이미지들 개별 저장 (256×256)
+    print(f"\n크롭된 타일 개별 저장 중...")
+    for idx, (start_x, start_y) in enumerate(crop_positions):
+        cropped = mask[start_y:start_y+crop_size, start_x:start_x+crop_size]
+        crop_save_path = save_path.replace('.png', f'_crop_{idx+1}_256x256.png')
+        cv2.imwrite(crop_save_path, cropped * 255)
+        if idx == 0:
+            print(f"  → 크롭 타일들 저장 중... (예: {crop_save_path})")
+    print(f"  → 총 {len(crop_positions)}개 크롭 타일 저장 완료")
+    
+    # 전체 파이프라인 시각화 저장 및 표시
+    print(f"\n전체 파이프라인 시각화 저장 중...")
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    print(f"\n✓ 필러 시각화 저장: {save_path}")
-    print("✓ 화면에 시각화 표시 중...")
+    print(f"  → 전체 시각화 저장: {save_path}")
+    print("\n✓ 화면에 시각화 표시 중...")
     plt.show()
     plt.close()
+    
+    # 저장된 파일 요약
+    print(f"\n" + "="*80)
+    print("💾 저장된 파일 요약")
+    print("="*80)
+    print(f"1. 원본 마스크 (10000×10000):  {original_save_path}")
+    print(f"2. 리사이즈 (2048×2048):       {resized_save_path}")
+    print(f"3. 크롭 타일 (256×256):        {len(crop_positions)}개 파일")
+    print(f"4. 전체 시각화:                {save_path}")
+    print("="*80)
     
     # 콘솔 요약 출력
     print("\n" + "="*80)
