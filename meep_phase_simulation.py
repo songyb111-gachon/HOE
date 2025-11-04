@@ -68,13 +68,17 @@ plt.rcParams['axes.unicode_minus'] = False
 # 모든 단위를 nm로 통일 (random_pillar_generator와 동일)
 
 # Resolution and PML (HOE 물리 파라미터, nm 단위로 변환)
-# ⚠️ Resolution = 1.0 pixels/nm으로 설정하여 마스크 픽셀과 1:1 매칭 (Binary pattern 유지)
-RESOLUTION_NM = 1.0         # 해상도 (pixels/nm) - 1 픽셀 = 1 nm (마스크와 동일)
-PML_NM = 1500.0            # PML 두께 (nm) = 1.5 μm
+# Resolution은 최종 출력 크기(2048×2048)를 고려하여 설정
+# 10000 nm → 2048 pixels이므로 해상도 = 2048 / 10000 ≈ 0.2048 pixels/nm
+RESOLUTION_NM = 2048.0 / 10000.0  # 해상도 (pixels/nm) ≈ 0.2048
+                                   # 이렇게 하면 10000×10000 nm → 2048×2048 pixels
+                                   # 메모리: 약 17 GB (적정)
+PML_NM = 500.0            # PML 두께 (nm) = 0.5 μm (파장의 약 1배)
 
 # Simulation cell size (nm)
-SIZE_X_NM = 20000.0        # x 방향 (전파 방향, nm) = 20 μm
-# SIZE_Y_NM, SIZE_Z_NM은 마스크 크기에서 자동 계산 (1 픽셀 = 1 nm)
+SIZE_X_NM = 2000.0        # x 방향 (전파 방향, nm) = 2 μm (최소화!)
+                          # Pillar(600) + 여유(400×2) + PML(500×2) = 1900 nm
+# SIZE_Y_NM, SIZE_Z_NM은 마스크 크기에서 자동 계산 (10000 nm)
 
 # Random pillar structure parameters (nm)
 PILLAR_HEIGHT_NM = 600.0   # 기둥(필름) 두께 (nm) = 0.6 μm
