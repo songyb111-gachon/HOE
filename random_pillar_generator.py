@@ -85,43 +85,47 @@ class RandomPillarGenerator:
         self.pillars = [self.generate_random_position() for _ in range(initial_num)]
         print(f"        초기 위치 생성 완료")
         
-        # Step 2-3: 각 기둥을 검사하며 거리 조건 위반 시 제거 및 재생성 반복
-        print(f"Step 2: 기둥 간 거리 검사 및 조정 중...")
+        # Step 2-3: 각 기둥을 검사하며 거리 조건 위반 시 제거 및 재생성 반복 (벡터화 최적화)
+        print(f"Step 2: 기둥 간 거리 검사 및 조정 중 (최적화)...")
         iteration_count = 0
         
+        # NumPy 배열로 변환
+        pillars_array = np.array(self.pillars)
+        
         while iteration_count < self.max_attempts:
-            all_valid = True
+            # 모든 pillar 쌍의 거리를 한번에 계산 (벡터화)
+            # pillars_array shape: (N, 2)
+            # 각 pillar와 다른 모든 pillar 사이의 center distance 계산
+            diff = pillars_array[:, np.newaxis, :] - pillars_array[np.newaxis, :, :]  # (N, N, 2)
+            center_distances = np.sqrt(np.sum(diff**2, axis=2))  # (N, N)
+            edge_distances = center_distances - 2 * self.pillar_radius
             
-            # 각 기둥을 하나씩 검사
-            for i in range(len(self.pillars)):
-                is_valid = True
-                
-                # 다른 모든 기둥과의 거리 확인
-                for j in range(len(self.pillars)):
-                    if i != j:
-                        edge_distance = self.calculate_edge_to_edge_distance(
-                            self.pillars[i], self.pillars[j]
-                        )
-                        
-                        # 거리가 최소 거리보다 작으면 조건 위반
-                        if edge_distance < self.min_edge_distance:
-                            is_valid = False
-                            all_valid = False
-                            break
-                
-                # 조건 위반 시 해당 기둥을 제거하고 새로운 위치 생성
-                if not is_valid:
-                    self.pillars[i] = self.generate_random_position()
-                    if iteration_count % 100 == 0 and iteration_count > 0:
-                        print(f"        반복 횟수: {iteration_count}, 조정 중...")
-                    break  # 하나를 조정했으면 다시 처음부터 검사
+            # 자기 자신과의 거리는 무시 (대각선 = inf)
+            np.fill_diagonal(edge_distances, np.inf)
             
-            # 모든 기둥이 조건을 만족하면 종료
-            if all_valid:
+            # 각 pillar의 최소 거리 찾기
+            min_distances = np.min(edge_distances, axis=1)  # (N,)
+            
+            # 조건 위반하는 pillar 찾기
+            violating_indices = np.where(min_distances < self.min_edge_distance)[0]
+            
+            if len(violating_indices) == 0:
+                # 모든 기둥이 조건을 만족
                 print(f"        모든 기둥이 조건을 만족함!")
                 break
             
+            # 위반하는 pillar 중 하나만 교체 (첫 번째)
+            idx_to_replace = violating_indices[0]
+            new_pos = self.generate_random_position()
+            pillars_array[idx_to_replace] = new_pos
+            
+            if iteration_count % 100 == 0 and iteration_count > 0:
+                print(f"        반복 횟수: {iteration_count}, 남은 충돌: {len(violating_indices)}개...")
+            
             iteration_count += 1
+        
+        # 다시 리스트로 변환
+        self.pillars = [tuple(p) for p in pillars_array]
         
         if iteration_count >= self.max_attempts:
             print(f"\n경고: 최대 반복 횟수({self.max_attempts})에 도달했습니다.")
