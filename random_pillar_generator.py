@@ -14,10 +14,10 @@ class RandomPillarGenerator:
     """랜덤 필러 생성 알고리즘"""
     
     def __init__(self, 
-                 pillar_radius=10.0,  # nm
+                 pillar_radius=45.0,  # nm
                  min_edge_distance=5.0,  # nm
-                 domain_size=(500, 500),  # nm
-                 initial_density=100.0,  # pillars per μm²
+                 domain_size=(10000, 10000),  # nm (10 μm × 10 μm)
+                 initial_density=29.5,  # pillars per μm²
                  max_attempts=10000):
         """
         Parameters:
@@ -97,7 +97,7 @@ class RandomPillarGenerator:
             # pillars_array shape: (N, 2)
             # 각 pillar와 다른 모든 pillar 사이의 center distance 계산
             diff = pillars_array[:, np.newaxis, :] - pillars_array[np.newaxis, :, :]  # (N, N, 2)
-            center_distances = np.sqrt(np.sum(diff**2, axis=2))  # (N, N)
+            center_distances = np.sqrt(np.sum(diff**2, axis=2))  # (N, N)ㅃㅃ
             edge_distances = center_distances - 2 * self.pillar_radius
             
             # 자기 자신과의 거리는 무시 (대각선 = inf)
@@ -278,28 +278,30 @@ def main():
     
     # -------------------- 시뮬레이션 영역 크기 --------------------
     
-    DOMAIN_WIDTH = 4096
+    DOMAIN_WIDTH = 10000
     # 시뮬레이션 영역의 가로 크기 (단위: nm)
-    # - 생성되는 이미지의 가로 픽셀 수와 동일
-    # - 예: 512, 1024, 2048, 4096, 8192
+    # - 10000 nm = 10 μm
+    # - MEEP 시뮬레이션에서 2048×2048 픽셀로 리사이즈됨
+    # - 예: 512, 1024, 2048, 4096, 8192, 10000
     
-    DOMAIN_HEIGHT = 4096
+    DOMAIN_HEIGHT = 10000
     # 시뮬레이션 영역의 세로 크기 (단위: nm)
-    # - 생성되는 이미지의 세로 픽셀 수와 동일
-    # - 정사각형 영역을 원하면 DOMAIN_WIDTH와 같게 설정
-    # - 예: 512, 1024, 2048, 4096, 8192
+    # - 10000 nm = 10 μm (정사각형 도메인)
+    # - MEEP 시뮬레이션에서 2048×2048 픽셀로 리사이즈됨
+    # - 예: 512, 1024, 2048, 4096, 8192, 10000
     
     # -------------------- 기둥 밀도 제어 --------------------
     
-    INITIAL_DENSITY = 40.0
+    INITIAL_DENSITY = 29.5
     # 초기 기둥 배치 밀도 (단위: 개/μm², 마이크로미터 제곱당 개수)
     # - 이 밀도로 초기 기둥을 무작위 배치한 후, 거리 조건 위반 기둥을 조정합니다
-    # - 값이 클수록 더 많은 기둥이 생성됩니다 (단, 거리 조건에 따라 최종 개수는 달라짐)
+    # - 목표: 10000×10000 nm² (100 μm²) 영역에 평균 2951 ± 14개 기둥
+    #   → 29.5 /μm² × 100 μm² = 2950개
     # - 권장 범위:
     #   * 10-30: 낮은 밀도, 충진율 ~10-20%
     #   * 30-60: 중간 밀도, 충진율 ~20-35%
     #   * 60-100: 높은 밀도, 충진율 ~35-50%
-    # - 예: 10.0 (희소), 30.0 (적당), 50.0 (조밀), 100.0 (매우 조밀)
+    # - 예: 10.0 (희소), 29.5 (목표), 50.0 (조밀), 100.0 (매우 조밀)
     
     # -------------------- 알고리즘 설정 --------------------
     
