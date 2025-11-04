@@ -109,7 +109,7 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     
     # 제목
     fig.suptitle(
-        f'랜덤 필러 생성 파이프라인 (각 단계별 시각화)\n'
+        f'Random Pillar Generation Pipeline (All Steps Visualization)\n'
         f'Original Domain: {params["domain_size"][0]}×{params["domain_size"][1]} nm² → '
         f'Resized: {target_size[0]}×{target_size[1]} px → '
         f'Cropped: {crop_size}×{crop_size} px | '
@@ -144,12 +144,12 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     # 첫 번째 행: 각 단계별 출력 시각화
     # ========================================
     
-    # 1-1. STEP 1: 원본 도메인 (10000×10000 nm)
+    # 1-1. STEP 1: Original Domain (10000×10000 nm)
     ax1 = fig.add_subplot(gs[0, 0:2])
     im1 = ax1.imshow(mask_original, cmap='viridis', interpolation='nearest')
     ax1.set_title(
-        f'STEP 1: 원본 도메인\n'
-        f'{params["domain_size"][0]}×{params["domain_size"][1]} nm² | {len(pillars)}개 필러',
+        f'STEP 1: Original Domain\n'
+        f'{params["domain_size"][0]}×{params["domain_size"][1]} nm² | {len(pillars)} pillars',
         fontsize=12, fontweight='bold', pad=10, 
         bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3)
     )
@@ -162,19 +162,19 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     orig_total_pixels = mask_original.size
     orig_fill_ratio = (orig_pillar_pixels / orig_total_pixels) * 100
     
-    orig_stats_text = f'필러 픽셀: {orig_pillar_pixels:,}\n충진율: {orig_fill_ratio:.2f}%'
+    orig_stats_text = f'Pillar pixels: {orig_pillar_pixels:,}\nFill ratio: {orig_fill_ratio:.2f}%'
     ax1.text(0.02, 0.98, orig_stats_text,
              transform=ax1.transAxes,
              fontsize=9,
              verticalalignment='top',
              bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
-    # 1-2. STEP 2: 리사이즈 (2048×2048 pixels)
+    # 1-2. STEP 2: Resized (2048×2048 pixels)
     ax2 = fig.add_subplot(gs[0, 2:4])
     im2 = ax2.imshow(mask_resized, cmap='viridis', interpolation='nearest')
     ax2.set_title(
-        f'STEP 2: 리사이즈 (cv2.resize)\n'
-        f'{target_size[0]}×{target_size[1]} pixels | MEEP 시뮬 출력 크기',
+        f'STEP 2: Resized (cv2.resize)\n'
+        f'{target_size[0]}×{target_size[1]} pixels | MEEP simulation output size',
         fontsize=12, fontweight='bold', pad=10,
         bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.3)
     )
@@ -187,7 +187,7 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     resized_total_pixels = mask_resized.size
     resized_fill_ratio = (resized_pillar_pixels / resized_total_pixels) * 100
     
-    resized_stats_text = f'필러 픽셀: {resized_pillar_pixels:,}\n충진율: {resized_fill_ratio:.2f}%'
+    resized_stats_text = f'Pillar pixels: {resized_pillar_pixels:,}\nFill ratio: {resized_fill_ratio:.2f}%'
     ax2.text(0.02, 0.98, resized_stats_text,
              transform=ax2.transAxes,
              fontsize=9,
@@ -198,7 +198,7 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     mask = mask_resized
     width, height = target_size
     
-    # 1-3. 통계 정보 테이블
+    # 1-3. Statistics Table
     ax3 = fig.add_subplot(gs[0, 4])
     ax3.axis('off')
     
@@ -207,29 +207,29 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
     is_target_met = abs(len(pillars) - target_count) <= target_tolerance
     
     status_symbol = "✓" if is_target_met else "✗"
-    status_text = "목표 달성" if is_target_met else "목표 미달성"
+    status_text = "Target Met" if is_target_met else "Not Met"
     status_color = "lightgreen" if is_target_met else "lightcoral"
     
     stats_text = f"""
 ╔═════════════════════════════════╗
-║       필러 생성 통계             ║
+║      Pillar Statistics          ║
 ╠═════════════════════════════════╣
-║ 필러 개수: {stats['기둥 개수']:6d}          ║
-║ 밀도: {stats['기둥 밀도 (/μm²)']:8.2f} /μm²     ║
-║ 충진율: {stats['충진율 (%)']:6.2f} %         ║
-║ 최소 거리: {stats['최소 edge-to-edge 거리 (nm)']:6.2f} nm      ║
+║ Count:    {stats['기둥 개수']:6d}             ║
+║ Density:  {stats['기둥 밀도 (/μm²)']:6.2f} /um^2      ║
+║ Fill:     {stats['충진율 (%)']:6.2f} %            ║
+║ Min dist: {stats['최소 edge-to-edge 거리 (nm)']:6.2f} nm         ║
 ╠═════════════════════════════════╣
-║       파라미터                   ║
+║         Parameters              ║
 ╠═════════════════════════════════╣
-║ 초기 밀도: {params['initial_density']:5.1f} /μm²     ║
-║ 반지름: {params['pillar_radius']:8.1f} nm        ║
-║ 최소 거리: {params['min_edge_distance']:6.1f} nm      ║
+║ Init density: {params['initial_density']:5.1f} /um^2  ║
+║ Radius:       {params['pillar_radius']:6.1f} nm      ║
+║ Min distance: {params['min_edge_distance']:6.1f} nm      ║
 ╠═════════════════════════════════╣
-║       목표 평가                  ║
+║      Target Evaluation          ║
 ╠═════════════════════════════════╣
-║ 목표: {target_count} ± {target_tolerance}              ║
-║ 실제: {stats['기둥 개수']:6d}                ║
-║ {status_symbol} {status_text:15s}       ║
+║ Target: {target_count} ± {target_tolerance}             ║
+║ Actual: {stats['기둥 개수']:6d}                ║
+║ Status: {status_symbol} {status_text:15s}   ║
 ╚═════════════════════════════════╝
 """
     
@@ -293,9 +293,9 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
         title_color = 'lightyellow' if idx == 0 else None
         
         ax.set_title(
-            f'{"STEP 3: " if idx == 0 else ""}학습 타일 #{idx+1}\n'
-            f'위치 [{start_x}:{start_x+crop_size}, {start_y}:{start_y+crop_size}]\n'
-            f'필러: {pillar_pixels}px ({fill_ratio:.1f}%)',
+            f'{"STEP 3: " if idx == 0 else ""}Training Tile #{idx+1}\n'
+            f'Position [{start_x}:{start_x+crop_size}, {start_y}:{start_y+crop_size}]\n'
+            f'Pillars: {pillar_pixels}px ({fill_ratio:.1f}%)',
             fontsize=9, fontweight='bold', pad=8,
             bbox=dict(boxstyle='round', facecolor=title_color, alpha=0.3) if title_color else None
         )
@@ -311,7 +311,7 @@ def plot_single_sample(sample, params, save_path='pillar_single.png', num_crops=
             rect = Rectangle((start_x, start_y), crop_size, crop_size, 
                            linewidth=2, edgecolor='red', facecolor='none')
             ax2.add_patch(rect)
-            ax2.text(start_x, start_y-10, f'크롭 #1', 
+            ax2.text(start_x, start_y-10, f'Crop #1', 
                     color='red', fontsize=8, fontweight='bold',
                     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
@@ -379,7 +379,7 @@ def plot_pillar_statistics(samples, params, save_path='pillar_statistics.png'):
     
     # 제목
     fig.suptitle(
-        f'랜덤 필러 생성 통계 분석 (샘플 수: {num_samples})\n'
+        f'Random Pillar Generation Statistical Analysis (Samples: {num_samples})\n'
         f'Domain: {params["domain_size"][0]}×{params["domain_size"][1]} nm² | '
         f'Pillar Radius: {params["pillar_radius"]} nm | '
         f'Min Distance: {params["min_edge_distance"]} nm',
@@ -414,7 +414,7 @@ def plot_pillar_statistics(samples, params, save_path='pillar_statistics.png'):
             # 시각화
             ax.imshow(mask, cmap='viridis', interpolation='nearest')
             ax.set_title(
-                f'샘플 {sample_idx+1}\n필러: {len(pillars)}개',
+                f'Sample {sample_idx+1}\nPillars: {len(pillars)}',
                 fontsize=11, fontweight='bold'
             )
             ax.set_xlabel('X (nm)', fontsize=9)
@@ -425,50 +425,50 @@ def plot_pillar_statistics(samples, params, save_path='pillar_statistics.png'):
     # 두 번째 행: 히스토그램 (4개)
     # ========================================
     
-    # 2-1: 필러 개수 분포
+    # 2-1: Pillar count distribution
     ax1 = fig.add_subplot(gs[1, 0])
     ax1.hist(pillar_counts, bins=15, color='steelblue', edgecolor='black', alpha=0.7)
-    ax1.axvline(mean_count, color='red', linestyle='--', linewidth=2, label=f'평균: {mean_count:.1f}')
+    ax1.axvline(mean_count, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_count:.1f}')
     ax1.axvline(mean_count - std_count, color='orange', linestyle=':', linewidth=1.5, label=f'±1σ: {std_count:.1f}')
     ax1.axvline(mean_count + std_count, color='orange', linestyle=':', linewidth=1.5)
-    ax1.set_xlabel('필러 개수', fontsize=10, fontweight='bold')
-    ax1.set_ylabel('빈도', fontsize=10, fontweight='bold')
-    ax1.set_title('필러 개수 분포', fontsize=11, fontweight='bold')
+    ax1.set_xlabel('Pillar Count', fontsize=10, fontweight='bold')
+    ax1.set_ylabel('Frequency', fontsize=10, fontweight='bold')
+    ax1.set_title('Pillar Count Distribution', fontsize=11, fontweight='bold')
     ax1.legend(fontsize=9)
     ax1.grid(axis='y', alpha=0.3)
     
-    # 2-2: 밀도 분포
+    # 2-2: Density distribution
     ax2 = fig.add_subplot(gs[1, 1])
     ax2.hist(densities, bins=15, color='green', edgecolor='black', alpha=0.7)
-    ax2.axvline(mean_density, color='red', linestyle='--', linewidth=2, label=f'평균: {mean_density:.2f}')
+    ax2.axvline(mean_density, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_density:.2f}')
     ax2.axvline(mean_density - std_density, color='orange', linestyle=':', linewidth=1.5, label=f'±1σ: {std_density:.2f}')
     ax2.axvline(mean_density + std_density, color='orange', linestyle=':', linewidth=1.5)
-    ax2.set_xlabel('밀도 (/μm²)', fontsize=10, fontweight='bold')
-    ax2.set_ylabel('빈도', fontsize=10, fontweight='bold')
-    ax2.set_title('필러 밀도 분포', fontsize=11, fontweight='bold')
+    ax2.set_xlabel('Density (/um^2)', fontsize=10, fontweight='bold')
+    ax2.set_ylabel('Frequency', fontsize=10, fontweight='bold')
+    ax2.set_title('Pillar Density Distribution', fontsize=11, fontweight='bold')
     ax2.legend(fontsize=9)
     ax2.grid(axis='y', alpha=0.3)
     
-    # 2-3: 충진율 분포
+    # 2-3: Fill ratio distribution
     ax3 = fig.add_subplot(gs[1, 2])
     ax3.hist(fill_ratios, bins=15, color='coral', edgecolor='black', alpha=0.7)
-    ax3.axvline(mean_fill, color='red', linestyle='--', linewidth=2, label=f'평균: {mean_fill:.2f}%')
+    ax3.axvline(mean_fill, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_fill:.2f}%')
     ax3.axvline(mean_fill - std_fill, color='orange', linestyle=':', linewidth=1.5, label=f'±1σ: {std_fill:.2f}%')
     ax3.axvline(mean_fill + std_fill, color='orange', linestyle=':', linewidth=1.5)
-    ax3.set_xlabel('충진율 (%)', fontsize=10, fontweight='bold')
-    ax3.set_ylabel('빈도', fontsize=10, fontweight='bold')
-    ax3.set_title('충진율 분포', fontsize=11, fontweight='bold')
+    ax3.set_xlabel('Fill Ratio (%)', fontsize=10, fontweight='bold')
+    ax3.set_ylabel('Frequency', fontsize=10, fontweight='bold')
+    ax3.set_title('Fill Ratio Distribution', fontsize=11, fontweight='bold')
     ax3.legend(fontsize=9)
     ax3.grid(axis='y', alpha=0.3)
     
-    # 2-4: 최소 거리 분포
+    # 2-4: Min distance distribution
     ax4 = fig.add_subplot(gs[1, 3])
     ax4.hist(min_distances, bins=15, color='purple', edgecolor='black', alpha=0.7)
-    ax4.axvline(mean_min_dist, color='red', linestyle='--', linewidth=2, label=f'평균: {mean_min_dist:.2f}')
-    ax4.axvline(params['min_edge_distance'], color='darkgreen', linestyle='-', linewidth=2, label=f'최소 허용: {params["min_edge_distance"]}')
-    ax4.set_xlabel('최소 edge-to-edge 거리 (nm)', fontsize=10, fontweight='bold')
-    ax4.set_ylabel('빈도', fontsize=10, fontweight='bold')
-    ax4.set_title('최소 필러 간 거리 분포', fontsize=11, fontweight='bold')
+    ax4.axvline(mean_min_dist, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_min_dist:.2f}')
+    ax4.axvline(params['min_edge_distance'], color='darkgreen', linestyle='-', linewidth=2, label=f'Min allowed: {params["min_edge_distance"]}')
+    ax4.set_xlabel('Min edge-to-edge distance (nm)', fontsize=10, fontweight='bold')
+    ax4.set_ylabel('Frequency', fontsize=10, fontweight='bold')
+    ax4.set_title('Min Pillar Distance Distribution', fontsize=11, fontweight='bold')
     ax4.legend(fontsize=9)
     ax4.grid(axis='y', alpha=0.3)
     
@@ -482,22 +482,22 @@ def plot_pillar_statistics(samples, params, save_path='pillar_statistics.png'):
     
     summary_text = f"""
 ╔═══════════════════════════════════════════════════════════════════════╗
-║                         요약 통계 (N = {num_samples})                              ║
+║                    Summary Statistics (N = {num_samples})                           ║
 ╠═══════════════════════════════════════════════════════════════════════╣
-║  항목                           평균              표준편차         범위   ║
+║  Metric                       Mean             Std Dev        Range    ║
 ╠═══════════════════════════════════════════════════════════════════════╣
-║  필러 개수                  {mean_count:8.1f}         ±{std_count:6.1f}     [{min(pillar_counts)}, {max(pillar_counts)}]
-║  밀도 (/μm²)               {mean_density:8.2f}         ±{std_density:6.2f}     [{min(densities):.2f}, {max(densities):.2f}]
-║  충진율 (%)                {mean_fill:8.2f}         ±{std_fill:6.2f}     [{min(fill_ratios):.2f}, {max(fill_ratios):.2f}]
-║  최소 거리 (nm)            {mean_min_dist:8.2f}         ±{std_min_dist:6.2f}     [{min(min_distances):.2f}, {max(min_distances):.2f}]
-║  평균 최근접 거리 (nm)     {mean_avg_dist:8.2f}         ±{std_avg_dist:6.2f}     [{min(avg_distances):.2f}, {max(avg_distances):.2f}]
+║  Pillar Count             {mean_count:8.1f}         ±{std_count:6.1f}     [{min(pillar_counts)}, {max(pillar_counts)}]
+║  Density (/um^2)          {mean_density:8.2f}         ±{std_density:6.2f}     [{min(densities):.2f}, {max(densities):.2f}]
+║  Fill Ratio (%)           {mean_fill:8.2f}         ±{std_fill:6.2f}     [{min(fill_ratios):.2f}, {max(fill_ratios):.2f}]
+║  Min Distance (nm)        {mean_min_dist:8.2f}         ±{std_min_dist:6.2f}     [{min(min_distances):.2f}, {max(min_distances):.2f}]
+║  Avg Nearest Dist (nm)    {mean_avg_dist:8.2f}         ±{std_avg_dist:6.2f}     [{min(avg_distances):.2f}, {max(avg_distances):.2f}]
 ╠═══════════════════════════════════════════════════════════════════════╣
-║  파라미터 설정                                                         ║
+║  Parameter Settings                                                    ║
 ╠═══════════════════════════════════════════════════════════════════════╣
-║  초기 밀도:          {params['initial_density']:.1f} /μm²                                       ║
-║  최소 허용 거리:     {params['min_edge_distance']:.1f} nm                                          ║
-║  필러 반지름:        {params['pillar_radius']:.1f} nm                                          ║
-║  도메인 크기:        {params['domain_size'][0]} × {params['domain_size'][1]} nm²                       ║
+║  Initial density:    {params['initial_density']:.1f} /um^2                                       ║
+║  Min allowed dist:   {params['min_edge_distance']:.1f} nm                                          ║
+║  Pillar radius:      {params['pillar_radius']:.1f} nm                                          ║
+║  Domain size:        {params['domain_size'][0]} × {params['domain_size'][1]} nm^2                      ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 """
     
@@ -509,32 +509,32 @@ def plot_pillar_statistics(samples, params, save_path='pillar_statistics.png'):
              family='monospace',
              bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
     
-    # 3-2: 샘플별 필러 개수 비교
+    # 3-2: Per-sample pillar count comparison
     ax6 = fig.add_subplot(gs[2, 2])
     sample_nums = list(range(1, num_samples + 1))
     ax6.plot(sample_nums, pillar_counts, marker='o', linestyle='-', linewidth=2, markersize=6, color='steelblue')
-    ax6.axhline(mean_count, color='red', linestyle='--', linewidth=2, label=f'평균: {mean_count:.1f}')
+    ax6.axhline(mean_count, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_count:.1f}')
     ax6.fill_between(sample_nums, 
                      mean_count - std_count, 
                      mean_count + std_count, 
                      alpha=0.2, color='orange', label=f'±1σ')
-    ax6.set_xlabel('샘플 번호', fontsize=10, fontweight='bold')
-    ax6.set_ylabel('필러 개수', fontsize=10, fontweight='bold')
-    ax6.set_title('샘플별 필러 개수', fontsize=11, fontweight='bold')
+    ax6.set_xlabel('Sample Number', fontsize=10, fontweight='bold')
+    ax6.set_ylabel('Pillar Count', fontsize=10, fontweight='bold')
+    ax6.set_title('Pillar Count per Sample', fontsize=11, fontweight='bold')
     ax6.legend(fontsize=9)
     ax6.grid(True, alpha=0.3)
     
-    # 3-3: 샘플별 밀도 비교
+    # 3-3: Per-sample density comparison
     ax7 = fig.add_subplot(gs[2, 3])
     ax7.plot(sample_nums, densities, marker='s', linestyle='-', linewidth=2, markersize=6, color='green')
-    ax7.axhline(mean_density, color='red', linestyle='--', linewidth=2, label=f'평균: {mean_density:.2f}')
+    ax7.axhline(mean_density, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_density:.2f}')
     ax7.fill_between(sample_nums, 
                      mean_density - std_density, 
                      mean_density + std_density, 
                      alpha=0.2, color='orange', label=f'±1σ')
-    ax7.set_xlabel('샘플 번호', fontsize=10, fontweight='bold')
-    ax7.set_ylabel('밀도 (/μm²)', fontsize=10, fontweight='bold')
-    ax7.set_title('샘플별 필러 밀도', fontsize=11, fontweight='bold')
+    ax7.set_xlabel('Sample Number', fontsize=10, fontweight='bold')
+    ax7.set_ylabel('Density (/um^2)', fontsize=10, fontweight='bold')
+    ax7.set_title('Pillar Density per Sample', fontsize=11, fontweight='bold')
     ax7.legend(fontsize=9)
     ax7.grid(True, alpha=0.3)
     
