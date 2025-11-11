@@ -220,119 +220,37 @@ def resample_mask_to_cell_size(mask, target_ny, target_nz):
     return resampled
 
 
-def create_random_pillar_geometry(mask, cell_size_x, cell_size_y, cell_size_z,
-                                  n_base=1.5, delta_n=0.04, thickness_um=600.0, 
-                                  pillar_x_center=0.0):
-    """Convert random pillar mask to MEEP geometry (HOE-style, nm units)
-    
-    HOE 코드의 create_binary_grating_geometry 방식을 따름:
-    - YZ 평면에 패턴 배치
-    - 픽셀별로 Block 생성
-    - 모든 단위는 nm
-    
-    Refractive index mapping (X 방향 전체 두께에 적용):
-    - Pattern = 0 (background) → X 방향 전체(thickness) n = n_base (default: 1.5)
-    - Pattern = 1 (pillar)     → X 방향 전체(thickness) n = n_base + delta_n (default: 1.54)
-    
-    Parameters:
-    -----------
-    mask : 2D numpy array
-        Binary pattern (0 or 1), shape (nz, ny) = (z, y) in MEEP coordinates
-        0 = background (n_base), 1 = pillar (n_base + delta_n)
-    cell_size_x, cell_size_y, cell_size_z : float
-        Cell size (nm)
-    n_base : float
-        Base refractive index for background (pattern = 0)
-    delta_n : float
-        Refractive index modulation (pattern = 1 → n = n_base + delta_n)
-    thickness_um : float
-        Pillar thickness in x direction (nm)
-    pillar_x_center : float
-        Pillar center position in x direction (nm)
-        
-    Returns:
-    --------
-    geometry : list
-        MEEP geometry objects (Blocks for pattern = 1)
-    background_material : mp.Medium
-        Background material (n = n_base, for pattern = 0)
+def create_materialgrid_geometry(mask, cell_size_x, cell_size_y, cell_size_z,
+                                 n_base=1.5, delta_n=0.04, thickness_nm=600.0,
+                                 pillar_x_center=0.0):
     """
-    print(f"\n=== Generating Random Pillar Geometry (HOE-style, nm units) ===")
-    print(f"Mask size: {mask.shape} (nz × ny)")
-    print(f"\n📊 Refractive index mapping:")
-    print(f"  • Pattern = 0 (background) → X 방향 {thickness_um:.0f} nm 전체가 n = {n_base:.2f}")
-    print(f"  • Pattern = 1 (pillar)     → X 방향 {thickness_um:.0f} nm 전체가 n = {n_base + delta_n:.2f}")
-    print(f"  • Δn = {delta_n:.3f}")
-    print(f"\nPillar structure:")
-    print(f"  • Film thickness (X direction): {thickness_um:.0f} nm (전체 두께)")
-    print(f"  • Pillar x center: {pillar_x_center:.0f} nm")
-    print(f"  • YZ 평면에서 패턴에 따라 X 방향 {thickness_um:.0f} nm 전체 굴절률 변조")
-    
-    # Materials (HOE standard)
-    # Pattern 0 (background) = n_base
-    # Pattern 1 (pillar) = n_base + delta_n
-    background_material = mp.Medium(index=n_base)
-    pillar_material = mp.Medium(index=n_base + delta_n)
-    
-    # Generate geometry
-    geometry = []
-    
-    nz, ny = mask.shape  # (z, y) format
-    z_coords = np.linspace(-cell_size_z/2, cell_size_z/2, nz)  # z coordinates
-    y_coords = np.linspace(-cell_size_y/2, cell_size_y/2, ny)  # y coordinates
-    
-    print(f"Coordinates:")
-    print(f"  • y range: {y_coords[0]:.0f} to {y_coords[-1]:.0f} nm ({ny} points)")
-    print(f"  • z range: {z_coords[0]:.0f} to {z_coords[-1]:.0f} nm ({nz} points)")
-    
-    # Pixel sizes (nm)
-    pixel_size_y = cell_size_y / ny
-    pixel_size_z = cell_size_z / nz
-    
-    print(f"Pixel size: {pixel_size_y:.2f} × {pixel_size_z:.2f} nm (y × z)")
-    
-    # Create blocks (HOE method: analyze pattern and create blocks)
-    # Pattern = 0 (background) → use background_material (default)
-    # Pattern = 1 (pillar) → create Block with pillar_material
-    # 
-    # ⚠️ 중요: X 방향 thickness_um(600 nm) 전체가 굴절률 변조됨
-    #   - Pattern = 0 위치: X 방향 600 nm 전체가 n = 1.5 (background)
-    #   - Pattern = 1 위치: X 방향 600 nm 전체가 n = 1.54 (Block)
-    pillar_count = 0
-    for j in range(nz):  # z direction (vertical in pattern)
-        z_pos = z_coords[j]
-        
-        # Check pattern at this z position
-        for i in range(ny):  # y direction (horizontal in pattern)
-            if mask[j, i] > 0.5:  # Pattern = 1 (pillar pixel)
-                y_pos = y_coords[i]
-                
-                # Create block with pillar_material (n = n_base + delta_n)
-                # X 방향 전체 thickness_um (600 nm)가 n = 1.54
-                block = mp.Block(
-                    size=mp.Vector3(thickness_um, pixel_size_y, pixel_size_z),  # X: 600 nm 전체
-                    center=mp.Vector3(pillar_x_center, y_pos, z_pos),  # (x, y, z)
-                    material=pillar_material  # n = 1.54
-                )
-                geometry.append(block)
-                pillar_count += 1
-            # else: Pattern = 0 (background), X 방향 600 nm 전체가 n = 1.5 (default_material)
-    
-    print(f"Generated Block count: {len(geometry):,}")
-    print(f"  • Pillar pixels: {pillar_count:,}")
-    print(f"  • Block size: {thickness_um:.0f} × {pixel_size_y:.2f} × {pixel_size_z:.2f} nm")
-    
-    # Debug: Check first few blocks
-    if len(geometry) > 0:
-        print(f"\n  🔍 Debug - First 3 blocks:")
-        for idx, block in enumerate(geometry[:3]):
-            print(f"    Block {idx+1}: center=({block.center.x:.1f}, {block.center.y:.1f}, {block.center.z:.1f}) nm, "
-                  f"size=({block.size.x:.1f}, {block.size.y:.2f}, {block.size.z:.2f}) nm")
-        print(f"    ...")
-        print(f"    ⚠️ 중요: 모든 Block의 X center = {pillar_x_center:.1f}, X size = {thickness_um:.0f} nm")
-        print(f"    ⚠️ 즉, 모든 Block은 X 방향 [{pillar_x_center-thickness_um/2:.1f}, {pillar_x_center+thickness_um/2:.1f}] nm 범위")
-    
-    return geometry, background_material
+    랜덤 필러 바이너리 마스크(0/1)를 MaterialGrid 한 장으로 표현.
+    - mask: (nz, ny) in MEEP coordinates (1=필러, 0=배경)
+    - X방향 thickness_nm 범위에서만 굴절률 변조, 그 외는 default_material(n_base).
+    - 패턴(랜덤성/밀도/형상)은 그대로 유지.
+    """
+    import meep as mp
+    import numpy as np
+
+    nz, ny = mask.shape
+    grid = mp.MaterialGrid(
+        grid_size=mp.Vector3(ny, nz, 1),                # (y, z, x_local)
+        medium1=mp.Medium(index=n_base),                # weight=0 → 배경
+        medium2=mp.Medium(index=n_base + delta_n),      # weight=1 → 필러
+        weights=mask.astype(np.float32),
+        do_averaging=False,    # 이진 패턴이면 보통 끄는 게 빠름
+        beta=0.0,              # 추가 스무딩 없음(원형 유지)
+    )
+
+    pattern_block = mp.Block(
+        size=mp.Vector3(thickness_nm, cell_size_y, cell_size_z),
+        center=mp.Vector3(pillar_x_center, 0, 0),
+        material=grid,
+    )
+
+    geometry = [pattern_block]
+    default_material = mp.Medium(index=n_base)
+    return geometry, default_material
 
 
 def visualize_actual_meep_pattern(sim, size_x_nm, size_y_nm, size_z_nm, 
@@ -749,12 +667,13 @@ def run_random_pillar_simulation(mask_file=MASK_FILE, resolution_nm=RESOLUTION_N
     frequency = 1.0 / wavelength_nm  # in 1/nm
     
     # Create geometry (HOE-style, nm units)
-    geometry, default_material = create_random_pillar_geometry(
+    geometry, default_material = create_materialgrid_geometry(
         resampled_mask, size_x_nm, size_y_nm, size_z_nm,
         n_base=n_base, delta_n=delta_n, 
-        thickness_um=pillar_height_nm,
+        thickness_nm=pillar_height_nm,
         pillar_x_center=pillar_x_center
     )
+
     
     # Cell and boundary (nm units)
     # Ensure total cell size has integer number of pixels
